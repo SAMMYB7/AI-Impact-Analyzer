@@ -29,7 +29,7 @@ import {
   LuCircleX,
   LuX,
 } from "react-icons/lu";
-import { useSimulation } from "../../hooks/useSimulation";
+import { useSimulation } from "../../hooks/useSimulationHook";
 import { useThemeColors } from "../../hooks/useThemeColors";
 import { useColorMode } from "../ui/color-mode";
 import { useLocation } from "react-router-dom";

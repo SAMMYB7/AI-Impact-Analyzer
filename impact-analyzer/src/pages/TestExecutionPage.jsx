@@ -1,479 +1,429 @@
 // ═══════════════════════════════════════════════════════════════
-// TEST EXECUTION PAGE — CI pipeline simulation with live logs
+// TEST EXECUTION PAGE — Pipeline execution monitoring
 // ═══════════════════════════════════════════════════════════════
 
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Flex,
   Text,
   Grid,
   Icon,
-  VStack,
   Spinner,
   Badge,
-  Separator,
+  Table,
 } from "@chakra-ui/react";
-import { useEffect, useRef } from "react";
 import {
   LuPlay,
+  LuClock,
   LuCircleCheck,
   LuCircleX,
-  LuClock,
-  LuTerminal,
-  LuActivity,
   LuTimer,
-  LuGitBranch,
+  LuActivity,
+  LuZap,
 } from "react-icons/lu";
-import { useSimulation } from "../hooks/useSimulation";
-import { useThemeColors } from "../hooks/useThemeColors";
 import GlassCard from "../components/shared/GlassCard";
+import StatCard from "../components/shared/StatCard";
 import StatusBadge from "../components/shared/StatusBadge";
+import PipelineView from "../components/PipelineView";
+import { useThemeColors } from "../hooks/useThemeColors";
+import { usePR } from "../context/usePRHook";
+import { getPR } from "../api/api";
 
 export default function TestExecutionPage() {
-  const { phase, currentPR, testResults, pipelineStages, visibleLogs } =
-    useSimulation();
   const t = useThemeColors();
-  const logEndRef = useRef(null);
+  const navigate = useNavigate();
+  const { prs, refreshPRs, loading } = usePR();
+  const [pipelines, setPipelines] = useState([]);
+  const [loadingPipelines, setLoadingPipelines] = useState(false);
 
-  // Auto-scroll logs
   useEffect(() => {
-    if (logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    refreshPRs();
+  }, [refreshPRs]);
+
+  // Fetch pipeline data for recent PRs
+  useEffect(() => {
+    if (prs.length === 0) return;
+    let ignore = false;
+    setLoadingPipelines(true);
+
+    async function fetchPipelines() {
+      const results = [];
+      // Fetch pipeline for up to 10 most recent PRs
+      const recentPRs = prs.slice(0, 10);
+      for (const pr of recentPRs) {
+        try {
+          const data = await getPR(pr.prId);
+          const prObj = data.pr || data;
+          if (prObj.pipeline) {
+            results.push({
+              prId: pr.prId,
+              status: pr.status,
+              pipeline: prObj.pipeline,
+            });
+          }
+        } catch {
+          // skip
+        }
+      }
+      if (!ignore) {
+        setPipelines(results);
+        setLoadingPipelines(false);
+      }
     }
-  }, [visibleLogs]);
 
-  const isRunning = phase === "running_tests";
-  const isCompleted = phase === "completed";
-  const hasResults = testResults && testResults.length > 0;
-  const passedCount = hasResults
-    ? testResults.filter((t) => t.status === "passed").length
-    : 0;
-  const failedCount = hasResults
-    ? testResults.filter((t) => t.status === "failed").length
-    : 0;
-  const totalDuration = hasResults
-    ? testResults.reduce((acc, t) => acc + t.duration, 0).toFixed(2)
-    : 0;
+    fetchPipelines();
+    return () => {
+      ignore = true;
+    };
+  }, [prs]);
 
-  if (!currentPR && phase === "idle") {
+  const completed = prs.filter((p) => p.status === "completed");
+  const failed = prs.filter((p) => p.status === "failed");
+  const analyzing = prs.filter((p) => p.status === "analyzing");
+
+  // Avg time saved
+  const avgTimeSaved =
+    completed.length > 0
+      ? Math.round(
+          completed.reduce((s, p) => s + (p.estimatedTimeSaved || 0), 0) /
+            completed.length,
+        )
+      : 0;
+
+  // Compute pipeline success rate
+  const totalRuns = completed.length + failed.length;
+  const successRate =
+    totalRuns > 0 ? Math.round((completed.length / totalRuns) * 100) : 0;
+
+  if (loading && prs.length === 0) {
     return (
-      <Flex
-        direction="column"
-        align="center"
-        justify="center"
-        minH="60vh"
-        gap="4"
-      >
-        <Flex
-          w="80px"
-          h="80px"
-          borderRadius="2xl"
-          bg="rgba(34, 197, 94, 0.1)"
-          border="1px solid rgba(34, 197, 94, 0.2)"
-          align="center"
-          justify="center"
-        >
-          <Icon color="#22C55E" boxSize="8">
-            <LuPlay />
-          </Icon>
-        </Flex>
-        <Text color={t.textSecondary} fontSize="lg" fontWeight="600">
-          No Test Run Active
-        </Text>
-        <Text color={t.textFaint} fontSize="sm" textAlign="center" maxW="400px">
-          Start a PR simulation to see the CI pipeline and test execution in
-          action.
-        </Text>
+      <Flex align="center" justify="center" h="60vh" gap="3">
+        <Spinner size="md" color="#3b82f6" />
+        <Text color={t.textMuted}>Loading execution data...</Text>
       </Flex>
     );
   }
 
   return (
-    <Box className="page-enter">
-      {/* Pipeline Timeline */}
-      <GlassCard mb="6">
-        <Flex justify="space-between" align="center" mb="4">
-          <Flex align="center" gap="2">
-            <Icon color="#4F46E5" boxSize="4">
-              <LuActivity />
-            </Icon>
-            <Text fontSize="sm" fontWeight="700" color={t.textPrimary}>
-              Pipeline Execution
-            </Text>
-          </Flex>
-          {currentPR && (
-            <Flex align="center" gap="2">
-              <Icon color={t.textFaint} boxSize="3">
-                <LuGitBranch />
-              </Icon>
-              <Text fontSize="xs" color={t.textMuted} fontFamily="mono">
-                {currentPR.branch}
-              </Text>
-            </Flex>
-          )}
-        </Flex>
-
-        <Flex
-          gap="2"
-          overflowX="auto"
-          pb="2"
-          css={{
-            "&::-webkit-scrollbar": { height: "4px" },
-            "&::-webkit-scrollbar-thumb": {
-              bg: t.scrollThumb,
-              borderRadius: "2px",
-            },
-          }}
-        >
-          {pipelineStages.map((stage, i) => (
-            <Flex
-              key={i}
-              direction="column"
-              align="center"
-              gap="2"
-              bg={
-                stage.status === "completed"
-                  ? "rgba(34, 197, 94, 0.06)"
-                  : stage.status === "running"
-                    ? "rgba(79, 70, 229, 0.06)"
-                    : t.bgSubtle
-              }
-              border={`1px solid ${
-                stage.status === "completed"
-                  ? "rgba(34, 197, 94, 0.15)"
-                  : stage.status === "running"
-                    ? "rgba(79, 70, 229, 0.2)"
-                    : t.borderLight
-              }`}
-              borderRadius="lg"
-              p="3"
-              minW="120px"
-              transition="all 0.5s"
-              animation={
-                stage.status === "running" ? "pulse 2s infinite" : "none"
-              }
-            >
-              <Text fontSize="lg">{stage.icon}</Text>
-              <Text
-                fontSize="10px"
-                fontWeight="600"
-                color={
-                  stage.status === "completed"
-                    ? "#22C55E"
-                    : stage.status === "running"
-                      ? "#818CF8"
-                      : t.textFaint
-                }
-                textAlign="center"
-              >
-                {stage.name}
-              </Text>
-              <Text fontSize="10px" color={t.textFaint}>
-                {stage.duration}
-              </Text>
-              {stage.status === "running" && (
-                <Spinner size="xs" color="#818CF8" />
-              )}
-              {stage.status === "completed" && (
-                <Icon color="#22C55E" boxSize="3">
-                  <LuCircleCheck />
-                </Icon>
-              )}
-            </Flex>
-          ))}
-        </Flex>
-      </GlassCard>
-
-      <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap="4" mb="6">
-        {/* Test Results */}
-        <GlassCard>
-          <Flex justify="space-between" align="center" mb="4">
-            <Text fontSize="sm" fontWeight="700" color={t.textPrimary}>
-              Test Results
-            </Text>
-            {isRunning && <Spinner size="xs" color="#818CF8" />}
-            {isCompleted && (
-              <Flex gap="3">
-                <Flex align="center" gap="1">
-                  <Icon color="#22C55E" boxSize="3">
-                    <LuCircleCheck />
-                  </Icon>
-                  <Text fontSize="xs" color="#22C55E" fontWeight="700">
-                    {passedCount} passed
-                  </Text>
-                </Flex>
-                <Flex align="center" gap="1">
-                  <Icon color="#ef4444" boxSize="3">
-                    <LuCircleX />
-                  </Icon>
-                  <Text fontSize="xs" color="#ef4444" fontWeight="700">
-                    {failedCount} failed
-                  </Text>
-                </Flex>
-              </Flex>
-            )}
-          </Flex>
-          <VStack
-            gap="1.5"
-            align="stretch"
-            maxH="400px"
-            overflowY="auto"
-            css={{
-              "&::-webkit-scrollbar": { width: "4px" },
-              "&::-webkit-scrollbar-thumb": {
-                bg: t.scrollThumb,
-                borderRadius: "2px",
-              },
-            }}
-          >
-            {hasResults ? (
-              testResults.map((test, i) => (
-                <Flex
-                  key={i}
-                  align="center"
-                  justify="space-between"
-                  bg={
-                    test.status === "passed"
-                      ? "rgba(34, 197, 94, 0.04)"
-                      : "rgba(239, 68, 68, 0.06)"
-                  }
-                  border={`1px solid ${test.status === "passed" ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.15)"}`}
-                  px="3"
-                  py="2"
-                  borderRadius="md"
-                  style={{
-                    animation: `fadeInUp 0.3s ease-out ${i * 0.06}s both`,
-                  }}
-                >
-                  <Flex align="center" gap="2" flex="1">
-                    <Icon
-                      color={test.status === "passed" ? "#22C55E" : "#ef4444"}
-                      boxSize="3.5"
-                    >
-                      {test.status === "passed" ? (
-                        <LuCircleCheck />
-                      ) : (
-                        <LuCircleX />
-                      )}
-                    </Icon>
-                    <Box flex="1">
-                      <Text
-                        fontSize="xs"
-                        fontFamily="mono"
-                        color={t.textSecondary}
-                      >
-                        {test.name}
-                      </Text>
-                      <Text fontSize="10px" color={t.textFaint}>
-                        {test.module}
-                      </Text>
-                    </Box>
-                  </Flex>
-                  <Flex align="center" gap="3">
-                    <Text fontSize="10px" color={t.textFaint}>
-                      {test.assertions} assertions
-                    </Text>
-                    <Flex align="center" gap="1">
-                      <Icon color={t.textFaint} boxSize="2.5">
-                        <LuTimer />
-                      </Icon>
-                      <Text
-                        fontSize="10px"
-                        color={t.textMuted}
-                        fontFamily="mono"
-                      >
-                        {test.duration}s
-                      </Text>
-                    </Flex>
-                    <StatusBadge status={test.status} />
-                  </Flex>
-                </Flex>
-              ))
-            ) : (
-              <Flex direction="column" align="center" py="8" gap="2">
-                {phase === "running_tests" ? (
-                  <>
-                    <Spinner color="#4F46E5" />
-                    <Text fontSize="sm" color={t.textFaint}>
-                      Running tests...
-                    </Text>
-                  </>
-                ) : (
-                  <Text fontSize="sm" color={t.textFaint}>
-                    Waiting for test execution...
-                  </Text>
-                )}
-              </Flex>
-            )}
-          </VStack>
-          {isCompleted && (
-            <Box mt="3" pt="3" borderTop={`1px solid ${t.borderLight}`}>
-              <Flex justify="space-between">
-                <Text fontSize="xs" color={t.textMuted}>
-                  Total Duration
-                </Text>
-                <Text fontSize="xs" fontWeight="700" color={t.textPrimary}>
-                  {totalDuration}s
-                </Text>
-              </Flex>
-            </Box>
-          )}
-        </GlassCard>
-
-        {/* Live Log Stream */}
-        <GlassCard>
-          <Flex justify="space-between" align="center" mb="4">
-            <Flex align="center" gap="2">
-              <Icon color="#4F46E5" boxSize="4">
-                <LuTerminal />
-              </Icon>
-              <Text fontSize="sm" fontWeight="700" color={t.textPrimary}>
-                Live Output
-              </Text>
-            </Flex>
-            {visibleLogs.length > 0 && !isCompleted && (
-              <Flex align="center" gap="2">
-                <Box
-                  w="6px"
-                  h="6px"
-                  borderRadius="full"
-                  bg="#ef4444"
-                  animation="pulse 1s infinite"
-                />
-                <Text fontSize="10px" color={t.textMuted}>
-                  LIVE
-                </Text>
-              </Flex>
-            )}
-          </Flex>
-          <Box
-            bg="rgba(0, 0, 0, 0.3)"
+    <Box>
+      {/* Header */}
+      <Box mb="6">
+        <Flex align="center" gap="3" mb="1">
+          <Flex
+            w="36px"
+            h="36px"
             borderRadius="lg"
-            p="3"
-            maxH="400px"
-            overflowY="auto"
-            fontFamily="mono"
-            fontSize="11px"
-            css={{
-              "&::-webkit-scrollbar": { width: "4px" },
-              "&::-webkit-scrollbar-thumb": {
-                bg: t.scrollThumb,
-                borderRadius: "2px",
-              },
-            }}
+            bg="rgba(16,185,129,0.1)"
+            align="center"
+            justify="center"
           >
-            {visibleLogs.map((log, i) => (
-              <Flex
-                key={i}
-                gap="2"
-                py="0.5"
-                opacity={0}
-                style={{ animation: `fadeIn 0.3s ease-out forwards` }}
-              >
-                <Text color={t.textFaint} whiteSpace="nowrap" flexShrink="0">
-                  {new Date(log.ts).toLocaleTimeString()}
-                </Text>
-                <Text
-                  color={
-                    log.level === "ERROR"
-                      ? "#ef4444"
-                      : log.level === "WARN"
-                        ? "#f59e0b"
-                        : log.level === "DEBUG"
-                          ? "#8B5CF6"
-                          : "#22C55E"
-                  }
-                  fontWeight="600"
-                  w="50px"
-                  flexShrink="0"
-                >
-                  {log.level}
-                </Text>
-                <Text color={t.textSecondary}>{log.message}</Text>
-              </Flex>
-            ))}
-            <div ref={logEndRef} />
-            {visibleLogs.length === 0 && (
-              <Text color={t.textFaint}>Waiting for output...</Text>
-            )}
+            <Icon color="#10b981" boxSize="5">
+              <LuPlay />
+            </Icon>
+          </Flex>
+          <Box>
+            <Text
+              fontSize="20px"
+              fontWeight="800"
+              color={t.textPrimary}
+              letterSpacing="-0.02em"
+            >
+              Test Execution
+            </Text>
+            <Text fontSize="13px" color={t.textMuted}>
+              Pipeline runs, execution timelines, and pass/fail rates
+            </Text>
           </Box>
-        </GlassCard>
+        </Flex>
+      </Box>
+
+      {/* Stats */}
+      <Grid
+        templateColumns={{ base: "1fr", sm: "1fr 1fr", lg: "repeat(4, 1fr)" }}
+        gap="4"
+        mb="6"
+      >
+        <StatCard
+          label="Completed Runs"
+          value={completed.length}
+          icon={<LuCircleCheck />}
+          iconColor="#10b981"
+        />
+        <StatCard
+          label="Failed Runs"
+          value={failed.length}
+          icon={<LuCircleX />}
+          iconColor="#ef4444"
+        />
+        <StatCard
+          label="Success Rate"
+          value={successRate}
+          suffix="%"
+          icon={<LuActivity />}
+          iconColor="#3b82f6"
+        />
+        <StatCard
+          label="Avg Time Saved"
+          value={avgTimeSaved}
+          suffix="s"
+          icon={<LuTimer />}
+          iconColor="#14b8a6"
+        />
       </Grid>
 
-      {/* Execution Summary */}
-      {isCompleted && (
-        <GlassCard>
-          <Flex align="center" gap="2" mb="4">
-            <Icon color="#22C55E" boxSize="4">
-              <LuCircleCheck />
+      {/* Currently running */}
+      {analyzing.length > 0 && (
+        <Box mb="6">
+          <GlassCard>
+            <Flex align="center" gap="2" mb="3">
+              <Box
+                w="8px"
+                h="8px"
+                borderRadius="full"
+                bg="#3b82f6"
+                boxShadow="0 0 8px rgba(59,130,246,0.5)"
+                animation="pulse 2s infinite"
+              />
+              <Text
+                fontSize="11px"
+                fontWeight="600"
+                textTransform="uppercase"
+                letterSpacing="0.08em"
+                color={t.textMuted}
+              >
+                Currently Running ({analyzing.length})
+              </Text>
+            </Flex>
+            <Flex direction="column" gap="2">
+              {analyzing.map((pr) => (
+                <Flex
+                  key={pr.prId}
+                  align="center"
+                  justify="space-between"
+                  px="3"
+                  py="2.5"
+                  borderRadius="lg"
+                  bg="rgba(59,130,246,0.05)"
+                  border="1px solid rgba(59,130,246,0.15)"
+                  cursor="pointer"
+                  onClick={() => navigate(`/pr/${pr.prId}`)}
+                  _hover={{ bg: "rgba(59,130,246,0.08)" }}
+                  transition="background 0.15s"
+                >
+                  <Flex align="center" gap="2">
+                    <Spinner size="xs" color="#3b82f6" />
+                    <Text
+                      fontSize="12px"
+                      color={t.textPrimary}
+                      fontFamily="mono"
+                      fontWeight="600"
+                    >
+                      {pr.prId.length > 20
+                        ? `...${pr.prId.slice(-14)}`
+                        : pr.prId}
+                    </Text>
+                  </Flex>
+                  <StatusBadge status="analyzing" />
+                </Flex>
+              ))}
+            </Flex>
+          </GlassCard>
+        </Box>
+      )}
+
+      {/* Pipeline views for recent PRs */}
+      <Box mb="6">
+        <Text
+          fontSize="11px"
+          fontWeight="600"
+          textTransform="uppercase"
+          letterSpacing="0.08em"
+          color={t.textMuted}
+          mb="3"
+        >
+          <Icon boxSize="3" mr="1.5" verticalAlign="middle">
+            <LuZap />
+          </Icon>
+          Recent Pipeline Runs
+        </Text>
+        {loadingPipelines ? (
+          <GlassCard>
+            <Flex align="center" justify="center" py="8" gap="3">
+              <Spinner size="sm" color="#3b82f6" />
+              <Text color={t.textMuted} fontSize="sm">
+                Loading pipeline data...
+              </Text>
+            </Flex>
+          </GlassCard>
+        ) : pipelines.length === 0 ? (
+          <GlassCard>
+            <Flex align="center" justify="center" py="8">
+              <Text color={t.textFaint} fontSize="sm">
+                No pipeline runs yet — analyze a PR to see execution data
+              </Text>
+            </Flex>
+          </GlassCard>
+        ) : (
+          <Flex direction="column" gap="4">
+            {pipelines.slice(0, 5).map((p) => (
+              <Box
+                key={p.prId}
+                cursor="pointer"
+                onClick={() => navigate(`/pr/${p.prId}`)}
+              >
+                <Flex align="center" gap="2" mb="2">
+                  <Text
+                    fontSize="12px"
+                    fontFamily="mono"
+                    fontWeight="600"
+                    color={t.accent}
+                  >
+                    {p.prId.length > 20 ? `...${p.prId.slice(-14)}` : p.prId}
+                  </Text>
+                  <StatusBadge status={p.status} />
+                </Flex>
+                <PipelineView stages={p.pipeline?.stages || []} />
+              </Box>
+            ))}
+          </Flex>
+        )}
+      </Box>
+
+      {/* Execution history table */}
+      <GlassCard noPadding>
+        <Box px="5" py="4" borderBottom={`1px solid ${t.border}`}>
+          <Text
+            fontSize="11px"
+            fontWeight="600"
+            textTransform="uppercase"
+            letterSpacing="0.08em"
+            color={t.textMuted}
+          >
+            <Icon boxSize="3" mr="1.5" verticalAlign="middle">
+              <LuClock />
             </Icon>
-            <Text fontSize="sm" fontWeight="700" color={t.textPrimary}>
-              Execution Summary
+            Execution History
+          </Text>
+        </Box>
+        {prs.filter((p) => p.status !== "received").length === 0 ? (
+          <Flex align="center" justify="center" py="12">
+            <Text color={t.textFaint} fontSize="sm">
+              No execution history
             </Text>
           </Flex>
-          <Grid
-            templateColumns={{ base: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
-            gap="4"
-          >
-            <Box
-              bg="rgba(34, 197, 94, 0.06)"
-              p="4"
-              borderRadius="lg"
-              textAlign="center"
-              border="1px solid rgba(34, 197, 94, 0.1)"
-            >
-              <Text fontSize="2xl" fontWeight="600" color="#22C55E">
-                {passedCount}
-              </Text>
-              <Text fontSize="xs" color={t.textMuted}>
-                Passed
-              </Text>
-            </Box>
-            <Box
-              bg="rgba(239, 68, 68, 0.06)"
-              p="4"
-              borderRadius="lg"
-              textAlign="center"
-              border="1px solid rgba(239, 68, 68, 0.1)"
-            >
-              <Text fontSize="2xl" fontWeight="600" color="#ef4444">
-                {failedCount}
-              </Text>
-              <Text fontSize="xs" color={t.textMuted}>
-                Failed
-              </Text>
-            </Box>
-            <Box
-              bg="rgba(79, 70, 229, 0.06)"
-              p="4"
-              borderRadius="lg"
-              textAlign="center"
-              border="1px solid rgba(79, 70, 229, 0.1)"
-            >
-              <Text fontSize="2xl" fontWeight="600" color="#818CF8">
-                {totalDuration}s
-              </Text>
-              <Text fontSize="xs" color={t.textMuted}>
-                Duration
-              </Text>
-            </Box>
-            <Box
-              bg="rgba(79, 70, 229, 0.06)"
-              p="4"
-              borderRadius="lg"
-              textAlign="center"
-              border="1px solid rgba(79, 70, 229, 0.1)"
-            >
-              <Text fontSize="2xl" fontWeight="600" color="#A5B4FC">
-                87.3%
-              </Text>
-              <Text fontSize="xs" color={t.textMuted}>
-                Coverage
-              </Text>
-            </Box>
-          </Grid>
-        </GlassCard>
-      )}
+        ) : (
+          <Box overflowX="auto">
+            <Table.Root size="sm" variant="plain">
+              <Table.Header>
+                <Table.Row>
+                  {[
+                    "PR",
+                    "Status",
+                    "Tests Run",
+                    "Time Saved",
+                    "Branch",
+                    "Date",
+                  ].map((h) => (
+                    <Table.ColumnHeader
+                      key={h}
+                      px="4"
+                      py="3"
+                      fontSize="10px"
+                      fontWeight="600"
+                      textTransform="uppercase"
+                      letterSpacing="0.08em"
+                      color={t.textFaint}
+                      borderBottom={`1px solid ${t.border}`}
+                    >
+                      {h}
+                    </Table.ColumnHeader>
+                  ))}
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {prs
+                  .filter((p) => p.status !== "received")
+                  .slice(0, 20)
+                  .map((pr) => (
+                    <Table.Row
+                      key={pr.prId}
+                      _hover={{ bg: t.bgHover }}
+                      cursor="pointer"
+                      onClick={() => navigate(`/pr/${pr.prId}`)}
+                    >
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        fontSize="12px"
+                        fontFamily="mono"
+                        color={t.accent}
+                        fontWeight="600"
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        {pr.prId.length > 18
+                          ? `...${pr.prId.slice(-12)}`
+                          : pr.prId}
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        <StatusBadge status={pr.status} />
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        fontSize="12px"
+                        fontFamily="mono"
+                        color={t.textSecondary}
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        {pr.selectedTests?.length || 0}
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        fontSize="12px"
+                        fontFamily="mono"
+                        color="#14b8a6"
+                        fontWeight="600"
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        {pr.estimatedTimeSaved || 0}s
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        fontSize="12px"
+                        fontFamily="mono"
+                        color={t.textMuted}
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        {pr.branch}
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        fontSize="11px"
+                        color={t.textFaint}
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        {pr.analysisCompletedAt
+                          ? new Date(pr.analysisCompletedAt).toLocaleString()
+                          : pr.createdAt
+                            ? new Date(pr.createdAt).toLocaleString()
+                            : "—"}
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+              </Table.Body>
+            </Table.Root>
+          </Box>
+        )}
+      </GlassCard>
     </Box>
   );
 }

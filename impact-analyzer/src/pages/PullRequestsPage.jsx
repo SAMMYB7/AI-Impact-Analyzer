@@ -1,523 +1,487 @@
 // ═══════════════════════════════════════════════════════════════
-// PULL REQUESTS PAGE — Persistent history + simulation entry point
+// PULL REQUESTS PAGE — Card-based PR listing
 // ═══════════════════════════════════════════════════════════════
 
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Flex,
   Text,
   Grid,
   Icon,
-  VStack,
-  HStack,
   Spinner,
+  Badge,
+  Input,
 } from "@chakra-ui/react";
-import { useState, useMemo } from "react";
 import {
   LuGitPullRequest,
+  LuUser,
   LuGitBranch,
   LuFileCode,
-  LuUser,
+  LuShieldAlert,
   LuClock,
-  LuPlay,
-  LuRefreshCw,
-  LuPlus,
-  LuMinus,
   LuChevronRight,
-  LuZap,
-  LuEye,
-  LuMessageSquare,
-  LuFilter,
-  LuCircleCheck,
-  LuCircleX,
+  LuSearch,
+  LuTarget,
+  LuPackage,
 } from "react-icons/lu";
-import { useNavigate } from "react-router-dom";
-import { useSimulation } from "../hooks/useSimulation";
-import { useThemeColors } from "../hooks/useThemeColors";
 import GlassCard from "../components/shared/GlassCard";
 import StatusBadge from "../components/shared/StatusBadge";
+import { useThemeColors } from "../hooks/useThemeColors";
+import { usePR } from "../context/usePRHook";
+
+function riskColor(score) {
+  if (score >= 70) return "#ef4444";
+  if (score >= 40) return "#f59e0b";
+  return "#10b981";
+}
+
+function riskLabel(score) {
+  if (score >= 70) return "High";
+  if (score >= 40) return "Medium";
+  return "Low";
+}
 
 export default function PullRequestsPage() {
-  const { phase, currentPR, completedPRs, startSimulation, resetSimulation } =
-    useSimulation();
-  const navigate = useNavigate();
   const t = useThemeColors();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [filterRisk, setFilterRisk] = useState("all");
+  const navigate = useNavigate();
+  const { prs, refreshPRs, loading } = usePR();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  const handleAnalyze = () => {
-    if (phase !== "idle" && phase !== "completed") return;
-    if (phase === "completed") resetSimulation();
-
-    setIsGenerating(true);
-    setTimeout(() => {
-      startSimulation();
-      setIsGenerating(false);
-      setTimeout(() => navigate("/analysis"), 1500);
-    }, 800);
-  };
-
-  // Build the PR list: current active + all accumulated history
-  const allPRs = useMemo(() => {
-    const list = [];
-
-    // Active current PR at the top if present
-    if (currentPR) {
-      list.push({
-        ...currentPR,
-        status: phase === "completed" ? "completed" : "analyzing",
-        _isActive: true,
-      });
-    }
-
-    // Accumulated completed PRs (persistent history)
-    completedPRs.forEach((pr) => {
-      // Skip if it's the same as the currently active PR
-      if (currentPR && pr.id === currentPR.id) return;
-      list.push({ ...pr, _isActive: false });
-    });
-
-    return list;
-  }, [currentPR, completedPRs, phase]);
+  useEffect(() => {
+    refreshPRs();
+  }, [refreshPRs]);
 
   // Filter
-  const filteredPRs = useMemo(() => {
-    if (filterRisk === "all") return allPRs;
-    return allPRs.filter((pr) => pr.risk === filterRisk);
-  }, [allPRs, filterRisk]);
+  const filtered = prs
+    .filter((pr) => statusFilter === "all" || pr.status === statusFilter)
+    .filter(
+      (pr) =>
+        search === "" ||
+        pr.prId.toLowerCase().includes(search.toLowerCase()) ||
+        pr.author.toLowerCase().includes(search.toLowerCase()) ||
+        pr.branch.toLowerCase().includes(search.toLowerCase()) ||
+        pr.repo.toLowerCase().includes(search.toLowerCase()),
+    );
 
-  const riskCounts = useMemo(() => {
-    const counts = { all: allPRs.length, high: 0, medium: 0, low: 0 };
-    allPRs.forEach((pr) => {
-      if (pr.risk) counts[pr.risk]++;
-    });
-    return counts;
-  }, [allPRs]);
+  const statuses = ["all", "received", "analyzing", "completed", "failed"];
+
+  if (loading && prs.length === 0) {
+    return (
+      <Flex align="center" justify="center" h="60vh" gap="3">
+        <Spinner size="md" color="#3b82f6" />
+        <Text color={t.textMuted}>Loading pull requests...</Text>
+      </Flex>
+    );
+  }
 
   return (
-    <Box className="page-enter">
-      {/* Header Actions */}
-      <Flex justify="space-between" align="center" mb="4">
-        <Box>
-          <Text fontSize="xs" color={t.textMuted} mb="1">
-            {allPRs.length} pull requests •{" "}
-            {
-              allPRs.filter(
-                (p) => p.status === "completed" || p.status === "failed",
-              ).length
-            }{" "}
-            completed
-          </Text>
-        </Box>
-        <Flex gap="3">
+    <Box>
+      {/* Header */}
+      <Box mb="6">
+        <Flex align="center" gap="3" mb="1">
           <Flex
-            align="center"
-            gap="2"
-            bg={t.bgInput}
-            px="4"
-            py="2"
+            w="36px"
+            h="36px"
             borderRadius="lg"
-            cursor="pointer"
-            border={`1px solid ${t.border}`}
-            _hover={{ bg: t.bgHover }}
-            onClick={() => {
-              if (phase === "completed") resetSimulation();
-            }}
+            bg="rgba(59,130,246,0.1)"
+            align="center"
+            justify="center"
           >
-            <Icon color={t.textMuted} boxSize="3.5">
-              <LuRefreshCw />
+            <Icon color="#3b82f6" boxSize="5">
+              <LuGitPullRequest />
             </Icon>
-            <Text fontSize="xs" color={t.textSecondary} fontWeight="500">
-              Refresh
-            </Text>
           </Flex>
+          <Box>
+            <Text
+              fontSize="20px"
+              fontWeight="800"
+              color={t.textPrimary}
+              letterSpacing="-0.02em"
+            >
+              Pull Requests
+            </Text>
+            <Text fontSize="13px" color={t.textMuted}>
+              {prs.length} total &bull;{" "}
+              {prs.filter((p) => p.status === "completed").length} analyzed
+            </Text>
+          </Box>
+        </Flex>
+      </Box>
+
+      {/* Search + Filters */}
+      <GlassCard>
+        <Flex gap="3" flexWrap="wrap" align="center">
           <Flex
             align="center"
-            gap="2"
-            bg={
-              phase === "idle" || phase === "completed"
-                ? "linear-gradient(135deg, #4F46E5, #8B5CF6)"
-                : t.bgHover
-            }
-            px="5"
-            py="2"
+            flex="1"
+            minW="200px"
+            bg={t.bgInput}
             borderRadius="lg"
-            cursor={
-              phase === "idle" || phase === "completed"
-                ? "pointer"
-                : "not-allowed"
-            }
-            _hover={
-              phase === "idle" || phase === "completed"
-                ? { opacity: 0.9, transform: "translateY(-1px)" }
-                : {}
-            }
-            transition="all 0.2s"
-            boxShadow={
-              phase === "idle" || phase === "completed"
-                ? "0 4px 20px rgba(79, 70, 229, 0.3)"
-                : "none"
-            }
-            onClick={handleAnalyze}
-            opacity={phase !== "idle" && phase !== "completed" ? 0.5 : 1}
+            border={`1px solid ${t.border}`}
+            px="3"
+            gap="2"
           >
-            {isGenerating ? (
-              <Spinner size="xs" color="white" />
-            ) : (
-              <Icon color="white" boxSize="3.5">
-                <LuZap />
-              </Icon>
-            )}
-            <Text fontSize="xs" color="white" fontWeight="700">
-              {isGenerating ? "Generating PR..." : "Simulate New PR"}
-            </Text>
+            <Icon color={t.textFaint} boxSize="4">
+              <LuSearch />
+            </Icon>
+            <Input
+              placeholder="Search by PR ID, author, branch, or repo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              variant="unstyled"
+              fontSize="13px"
+              color={t.textPrimary}
+              py="2.5"
+              _placeholder={{ color: t.textFaint }}
+            />
+          </Flex>
+          <Flex gap="1.5" align="center">
+            {statuses.map((s) => {
+              const isActive = statusFilter === s;
+              const colors = {
+                all: t.accent,
+                received: "#64748b",
+                analyzing: "#3b82f6",
+                completed: "#10b981",
+                failed: "#ef4444",
+              };
+              const c = colors[s] || t.accent;
+              return (
+                <Box
+                  key={s}
+                  as="button"
+                  px="3"
+                  py="1.5"
+                  borderRadius="md"
+                  fontSize="11px"
+                  fontWeight="600"
+                  textTransform="uppercase"
+                  letterSpacing="0.04em"
+                  bg={isActive ? `${c}18` : "transparent"}
+                  color={isActive ? c : t.textMuted}
+                  border={`1px solid ${isActive ? `${c}30` : "transparent"}`}
+                  cursor="pointer"
+                  transition="all 0.15s"
+                  _hover={{ bg: `${c}10` }}
+                  onClick={() => setStatusFilter(s)}
+                >
+                  {s}
+                </Box>
+              );
+            })}
           </Flex>
         </Flex>
-      </Flex>
+      </GlassCard>
 
-      {/* Risk Filters */}
-      <Flex gap="2" mb="4">
-        {[
-          { key: "all", label: "All" },
-          { key: "high", label: "High Risk", color: "#ef4444" },
-          { key: "medium", label: "Medium", color: "#f59e0b" },
-          { key: "low", label: "Low", color: "#22C55E" },
-        ].map((f) => (
-          <Flex
-            key={f.key}
-            align="center"
-            gap="1.5"
-            px="3"
-            py="1.5"
-            borderRadius="full"
-            bg={
-              filterRisk === f.key
-                ? f.color
-                  ? `${f.color}15`
-                  : t.accentLight
-                : t.bgInput
-            }
-            border={`1px solid ${filterRisk === f.key ? f.color || t.accent : t.border}`}
-            cursor="pointer"
-            onClick={() => setFilterRisk(f.key)}
-            transition="all 0.2s"
-            _hover={{ bg: t.bgHover }}
-          >
-            <Text
-              fontSize="xs"
-              fontWeight="600"
-              color={
-                filterRisk === f.key ? f.color || t.accentText : t.textMuted
-              }
+      {/* PR Cards Grid */}
+      <Box mt="4">
+        {filtered.length === 0 ? (
+          <GlassCard>
+            <Flex
+              direction="column"
+              align="center"
+              justify="center"
+              py="16"
+              gap="3"
             >
-              {f.label}
-            </Text>
-            <Text
-              fontSize="10px"
-              color={
-                filterRisk === f.key ? f.color || t.accentText : t.textFaint
-              }
-              fontWeight="500"
-            >
-              {riskCounts[f.key]}
-            </Text>
-          </Flex>
-        ))}
-      </Flex>
-
-      {/* PR List */}
-      <VStack gap="3" align="stretch">
-        {filteredPRs.map((pr) => (
-          <GlassCard
-            key={pr.id + (pr._isActive ? "-active" : "")}
-            hover
-            glow={
-              pr.risk === "high"
-                ? "rgba(239,68,68,0.1)"
-                : pr.risk === "medium"
-                  ? "rgba(245,158,11,0.1)"
-                  : "rgba(16,185,129,0.1)"
-            }
-            cursor="pointer"
-            onClick={() => {
-              if (pr._isActive && currentPR) navigate("/analysis");
+              <Icon color={t.textMuted} boxSize="10">
+                <LuGitPullRequest />
+              </Icon>
+              <Text color={t.textMuted} fontSize="md" fontWeight="500">
+                {search || statusFilter !== "all"
+                  ? "No PRs match your filters"
+                  : "No pull requests yet"}
+              </Text>
+              <Text color={t.textFaint} fontSize="sm">
+                {search || statusFilter !== "all"
+                  ? "Try adjusting your search or filter"
+                  : "Simulate a PR from the Dashboard to get started"}
+              </Text>
+            </Flex>
+          </GlassCard>
+        ) : (
+          <Grid
+            templateColumns={{
+              base: "1fr",
+              md: "1fr 1fr",
+              xl: "1fr 1fr 1fr",
             }}
+            gap="4"
           >
-            {/* Active PR indicator shimmer */}
-            {pr._isActive && phase !== "idle" && phase !== "completed" && (
-              <Box
-                position="absolute"
-                top="0"
-                left="0"
-                right="0"
-                h="2px"
-                bg="linear-gradient(90deg, #4F46E5, #8B5CF6, #4F46E5)"
-                backgroundSize="200% 100%"
-                animation="shimmer 2s linear infinite"
-              />
-            )}
+            {filtered.map((pr) => {
+              const isCompleted = pr.status === "completed";
+              const rc = riskColor(pr.riskScore || 0);
 
-            <Flex justify="space-between" align="flex-start">
-              {/* Left Section */}
-              <Flex gap="4" flex="1">
-                {/* PR Icon */}
-                <Flex
-                  w="42px"
-                  h="42px"
-                  borderRadius="lg"
-                  bg={
-                    pr.risk === "high"
-                      ? "rgba(239,68,68,0.1)"
-                      : pr.risk === "medium"
-                        ? "rgba(245,158,11,0.1)"
-                        : "rgba(16,185,129,0.1)"
-                  }
-                  border={`1px solid ${pr.risk === "high" ? "rgba(239,68,68,0.2)" : pr.risk === "medium" ? "rgba(245,158,11,0.2)" : "rgba(16,185,129,0.2)"}`}
-                  align="center"
-                  justify="center"
-                  flexShrink="0"
+              return (
+                <Box
+                  key={pr.prId}
+                  cursor="pointer"
+                  onClick={() => navigate(`/pr/${pr.prId}`)}
+                  transition="all 0.2s ease"
+                  _hover={{
+                    transform: "translateY(-2px)",
+                  }}
                 >
-                  <Icon
-                    color={
-                      pr.risk === "high"
-                        ? "#ef4444"
-                        : pr.risk === "medium"
-                          ? "#f59e0b"
-                          : "#22C55E"
-                    }
-                    boxSize="5"
-                  >
-                    <LuGitPullRequest />
-                  </Icon>
-                </Flex>
+                  <GlassCard hover>
+                    {/* Top: Status + Risk */}
+                    <Flex justify="space-between" align="center" mb="3">
+                      <StatusBadge status={pr.status} />
+                      {isCompleted && (
+                        <Flex align="center" gap="1.5">
+                          <Box
+                            w="8px"
+                            h="8px"
+                            borderRadius="full"
+                            bg={rc}
+                            boxShadow={`0 0 6px ${rc}50`}
+                          />
+                          <Text
+                            fontSize="13px"
+                            fontWeight="800"
+                            fontFamily="mono"
+                            color={rc}
+                          >
+                            {pr.riskScore}%
+                          </Text>
+                          <Text
+                            fontSize="10px"
+                            color={t.textFaint}
+                            fontWeight="500"
+                          >
+                            {riskLabel(pr.riskScore || 0)}
+                          </Text>
+                        </Flex>
+                      )}
+                    </Flex>
 
-                {/* PR Info */}
-                <Box flex="1">
-                  <Flex align="center" gap="2" mb="1">
-                    <Text fontSize="sm" fontWeight="700" color={t.textPrimary}>
-                      {pr.id}
-                    </Text>
-                    <StatusBadge
-                      status={
-                        pr._isActive &&
-                        phase !== "completed" &&
-                        phase !== "idle"
-                          ? "analyzing"
-                          : pr.status === "failed"
-                            ? "failed"
-                            : pr.status === "completed"
-                              ? "completed"
-                              : "open"
-                      }
-                    />
-                    {/* Test result summary */}
-                    {(pr.testsPassed !== undefined ||
-                      pr.testsFailed !== undefined) && (
-                      <Flex align="center" gap="1.5" ml="1">
-                        {pr.testsFailed > 0 ? (
-                          <Flex align="center" gap="0.5">
-                            <Icon color="#ef4444" boxSize="3">
-                              <LuCircleX />
-                            </Icon>
-                            <Text
-                              fontSize="10px"
-                              color="#ef4444"
-                              fontWeight="600"
-                            >
-                              {pr.testsFailed}
-                            </Text>
-                          </Flex>
-                        ) : null}
-                        <Flex align="center" gap="0.5">
-                          <Icon color="#22C55E" boxSize="3">
-                            <LuCircleCheck />
+                    {/* PR ID */}
+                    <Flex align="center" gap="2" mb="3">
+                      <Icon color="#3b82f6" boxSize="4">
+                        <LuGitPullRequest />
+                      </Icon>
+                      <Text
+                        fontSize="14px"
+                        fontWeight="700"
+                        color={t.textPrimary}
+                        fontFamily="mono"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        whiteSpace="nowrap"
+                      >
+                        {pr.prId}
+                      </Text>
+                    </Flex>
+
+                    {/* Details grid */}
+                    <Flex direction="column" gap="2" mb="3">
+                      {/* Author */}
+                      <Flex align="center" gap="2">
+                        <Flex
+                          w="24px"
+                          h="24px"
+                          borderRadius="md"
+                          bg="rgba(139,92,246,0.08)"
+                          align="center"
+                          justify="center"
+                          flexShrink="0"
+                        >
+                          <Icon color="#a78bfa" boxSize="3">
+                            <LuUser />
+                          </Icon>
+                        </Flex>
+                        <Text fontSize="12px" color={t.textMuted} minW="48px">
+                          Author
+                        </Text>
+                        <Text
+                          fontSize="12px"
+                          fontWeight="600"
+                          color={t.textSecondary}
+                        >
+                          {pr.author}
+                        </Text>
+                      </Flex>
+
+                      {/* Branch */}
+                      <Flex align="center" gap="2">
+                        <Flex
+                          w="24px"
+                          h="24px"
+                          borderRadius="md"
+                          bg="rgba(20,184,166,0.08)"
+                          align="center"
+                          justify="center"
+                          flexShrink="0"
+                        >
+                          <Icon color="#14b8a6" boxSize="3">
+                            <LuGitBranch />
+                          </Icon>
+                        </Flex>
+                        <Text fontSize="12px" color={t.textMuted} minW="48px">
+                          Branch
+                        </Text>
+                        <Text
+                          fontSize="12px"
+                          fontWeight="600"
+                          color={t.textSecondary}
+                          fontFamily="mono"
+                          overflow="hidden"
+                          textOverflow="ellipsis"
+                          whiteSpace="nowrap"
+                        >
+                          {pr.branch}
+                        </Text>
+                      </Flex>
+
+                      {/* Repo */}
+                      <Flex align="center" gap="2">
+                        <Flex
+                          w="24px"
+                          h="24px"
+                          borderRadius="md"
+                          bg="rgba(59,130,246,0.08)"
+                          align="center"
+                          justify="center"
+                          flexShrink="0"
+                        >
+                          <Icon color="#3b82f6" boxSize="3">
+                            <LuPackage />
+                          </Icon>
+                        </Flex>
+                        <Text fontSize="12px" color={t.textMuted} minW="48px">
+                          Repo
+                        </Text>
+                        <Text
+                          fontSize="12px"
+                          fontWeight="600"
+                          color={t.textSecondary}
+                          fontFamily="mono"
+                          overflow="hidden"
+                          textOverflow="ellipsis"
+                          whiteSpace="nowrap"
+                        >
+                          {pr.repo}
+                        </Text>
+                      </Flex>
+                    </Flex>
+
+                    {/* Changed Files */}
+                    {pr.filesChanged && pr.filesChanged.length > 0 && (
+                      <Box mb="3">
+                        <Flex align="center" gap="1.5" mb="1.5">
+                          <Icon color={t.textFaint} boxSize="3">
+                            <LuFileCode />
                           </Icon>
                           <Text
                             fontSize="10px"
-                            color="#22C55E"
                             fontWeight="600"
+                            textTransform="uppercase"
+                            letterSpacing="0.06em"
+                            color={t.textFaint}
                           >
-                            {pr.testsPassed || 0}
+                            {pr.filesChanged.length} Changed File
+                            {pr.filesChanged.length > 1 ? "s" : ""}
                           </Text>
                         </Flex>
-                      </Flex>
+                        <Flex gap="1" flexWrap="wrap">
+                          {pr.filesChanged.slice(0, 4).map((f) => (
+                            <Badge
+                              key={f}
+                              bg="rgba(59,130,246,0.06)"
+                              color={t.textMuted}
+                              borderRadius="md"
+                              px="2"
+                              py="0.5"
+                              fontSize="10px"
+                              fontFamily="mono"
+                              border={`1px solid ${t.border}`}
+                            >
+                              {f.length > 28 ? `...${f.slice(-24)}` : f}
+                            </Badge>
+                          ))}
+                          {pr.filesChanged.length > 4 && (
+                            <Badge
+                              bg="rgba(139,92,246,0.06)"
+                              color="#a78bfa"
+                              borderRadius="md"
+                              px="2"
+                              py="0.5"
+                              fontSize="10px"
+                              border="1px solid rgba(139,92,246,0.15)"
+                            >
+                              +{pr.filesChanged.length - 4} more
+                            </Badge>
+                          )}
+                        </Flex>
+                      </Box>
                     )}
-                  </Flex>
-                  <Text
-                    fontSize="sm"
-                    color={t.textSecondary}
-                    mb="2"
-                    fontWeight="500"
-                  >
-                    {pr.commitMessage}
-                  </Text>
-                  <Flex gap="4" flexWrap="wrap">
-                    <Flex align="center" gap="1.5">
-                      <Icon color={t.textFaint} boxSize="3">
-                        <LuGitBranch />
-                      </Icon>
-                      <Text fontSize="xs" color={t.textMuted} fontFamily="mono">
-                        {pr.branch}
-                      </Text>
-                    </Flex>
-                    <Flex align="center" gap="1.5">
-                      <Icon color={t.textFaint} boxSize="3">
-                        <LuUser />
-                      </Icon>
-                      <Text fontSize="xs" color={t.textMuted}>
-                        {pr.author.name}
-                      </Text>
-                    </Flex>
-                    <Flex align="center" gap="1.5">
-                      <Icon color={t.textFaint} boxSize="3">
-                        <LuFileCode />
-                      </Icon>
-                      <Text fontSize="xs" color={t.textMuted}>
-                        {pr.changedFiles.length} files
-                      </Text>
-                    </Flex>
-                    <Flex align="center" gap="1">
-                      <Text fontSize="xs" color="#22C55E" fontWeight="600">
-                        +{pr.additions}
-                      </Text>
-                      <Text fontSize="xs" color="#ef4444" fontWeight="600">
-                        -{pr.deletions}
-                      </Text>
-                    </Flex>
-                  </Flex>
-                </Box>
-              </Flex>
 
-              {/* Right Section */}
-              <Flex direction="column" align="flex-end" gap="2">
-                {/* Risk Score */}
-                <Flex
-                  align="center"
-                  gap="2"
-                  bg={`${pr.risk === "high" ? "rgba(239,68,68,0.1)" : pr.risk === "medium" ? "rgba(245,158,11,0.1)" : "rgba(16,185,129,0.1)"}`}
-                  px="3"
-                  py="1.5"
-                  borderRadius="lg"
-                  border={`1px solid ${pr.risk === "high" ? "rgba(239,68,68,0.2)" : pr.risk === "medium" ? "rgba(245,158,11,0.2)" : "rgba(16,185,129,0.2)"}`}
-                >
-                  <Text fontSize="xs" color={t.textMuted}>
-                    Risk
-                  </Text>
-                  <Text
-                    fontSize="sm"
-                    fontWeight="600"
-                    color={
-                      pr.risk === "high"
-                        ? "#ef4444"
-                        : pr.risk === "medium"
-                          ? "#f59e0b"
-                          : "#22C55E"
-                    }
-                  >
-                    {pr.riskScore}
-                  </Text>
-                </Flex>
-
-                {/* Modules */}
-                <Flex gap="1" flexWrap="wrap" justify="flex-end">
-                  {pr.modules.slice(0, 3).map((mod, i) => (
-                    <Text
-                      key={i}
-                      fontSize="10px"
-                      bg={t.bgInput}
-                      px="2"
-                      py="0.5"
-                      borderRadius="md"
-                      color={t.textMuted}
-                      border={`1px solid ${t.border}`}
-                    >
-                      {mod}
-                    </Text>
-                  ))}
-                  {pr.modules.length > 3 && (
-                    <Text fontSize="10px" color={t.textFaint}>
-                      +{pr.modules.length - 3}
-                    </Text>
-                  )}
-                </Flex>
-
-                {/* Action icons */}
-                <HStack gap="2" mt="1">
-                  <Flex align="center" gap="1">
-                    <Icon color={t.textFaint} boxSize="3">
-                      <LuEye />
-                    </Icon>
-                    <Text fontSize="10px" color={t.textFaint}>
-                      {((pr.number * 3 + 2) % 8) + 2}
-                    </Text>
-                  </Flex>
-                  <Flex align="center" gap="1">
-                    <Icon color={t.textFaint} boxSize="3">
-                      <LuMessageSquare />
-                    </Icon>
-                    <Text fontSize="10px" color={t.textFaint}>
-                      {(pr.number * 2 + 1) % 5}
-                    </Text>
-                  </Flex>
-                </HStack>
-              </Flex>
-            </Flex>
-
-            {/* Changed Files Preview for active PR */}
-            {pr._isActive && currentPR && (
-              <Box mt="4" pt="4" borderTop={`1px solid ${t.borderLight}`}>
-                <Text fontSize="xs" fontWeight="600" color={t.textMuted} mb="2">
-                  Changed Files
-                </Text>
-                <Grid
-                  templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
-                  gap="1.5"
-                >
-                  {pr.changedFiles.map((file, i) => (
+                    {/* Bottom bar: Completed metrics or timestamp */}
                     <Flex
-                      key={i}
+                      justify="space-between"
                       align="center"
-                      gap="2"
-                      bg={t.bgSubtle}
-                      px="3"
-                      py="1.5"
-                      borderRadius="md"
+                      pt="3"
+                      borderTop={`1px solid ${t.border}`}
                     >
-                      <Icon color="#4F46E5" boxSize="3">
-                        <LuFileCode />
+                      {isCompleted ? (
+                        <Flex gap="4">
+                          <Flex align="center" gap="1">
+                            <Icon color="#8b5cf6" boxSize="3">
+                              <LuTarget />
+                            </Icon>
+                            <Text
+                              fontSize="11px"
+                              color={t.textMuted}
+                              fontFamily="mono"
+                            >
+                              {pr.confidence || 0}%
+                            </Text>
+                          </Flex>
+                          <Flex align="center" gap="1">
+                            <Icon color="#14b8a6" boxSize="3">
+                              <LuClock />
+                            </Icon>
+                            <Text
+                              fontSize="11px"
+                              color={t.textMuted}
+                              fontFamily="mono"
+                            >
+                              {pr.estimatedTimeSaved || 0}s saved
+                            </Text>
+                          </Flex>
+                          <Flex align="center" gap="1">
+                            <Icon color="#3b82f6" boxSize="3">
+                              <LuShieldAlert />
+                            </Icon>
+                            <Text
+                              fontSize="11px"
+                              color={t.textMuted}
+                              fontFamily="mono"
+                            >
+                              {pr.selectedTests?.length || 0} tests
+                            </Text>
+                          </Flex>
+                        </Flex>
+                      ) : (
+                        <Text fontSize="11px" color={t.textFaint}>
+                          {pr.createdAt
+                            ? new Date(pr.createdAt).toLocaleString()
+                            : "—"}
+                        </Text>
+                      )}
+                      <Icon color={t.textFaint} boxSize="4">
+                        <LuChevronRight />
                       </Icon>
-                      <Text
-                        fontSize="xs"
-                        color={t.textSecondary}
-                        fontFamily="mono"
-                      >
-                        {file}
-                      </Text>
                     </Flex>
-                  ))}
-                </Grid>
-              </Box>
-            )}
-          </GlassCard>
-        ))}
-
-        {filteredPRs.length === 0 && (
-          <Flex
-            justify="center"
-            py="12"
-            direction="column"
-            align="center"
-            gap="3"
-          >
-            <Icon color={t.textFaint} boxSize="10">
-              <LuGitPullRequest />
-            </Icon>
-            <Text fontSize="sm" color={t.textMuted}>
-              No pull requests match the selected filter.
-            </Text>
-          </Flex>
+                  </GlassCard>
+                </Box>
+              );
+            })}
+          </Grid>
         )}
-      </VStack>
+      </Box>
     </Box>
   );
 }

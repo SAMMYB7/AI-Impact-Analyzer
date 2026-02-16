@@ -1,348 +1,425 @@
-# 🎯 DESIGN CONTEXT — Enterprise Dark Theme (Black/Grey)
+# 🧠 AI-Driven Impact Analyzer — Frontend Build Instructions
 
-## Purpose
+**Stack:** React + Vite + Chakra UI
+**Goal:** Build UI for simulated + real PR analysis pipeline
 
-This project is a **professional DevOps impact-analysis dashboard**.
-The UI must resemble internal engineering tools used by senior developers and platform teams.
+---
 
-It should feel similar to:
+# 🎯 Objective
 
-* GitHub
-* Linear
-* Datadog
-* Vercel
-* Stripe Dashboard
+Build a professional DevOps dashboard UI that interacts with the backend.
 
-The design must look:
+The frontend must support:
 
-* sharp
+* Simulated PR creation
+* Real GitHub PR display
+* PR analysis trigger
+* Pipeline stage visualization
+* Logs streaming
+* Metrics display
+
+The UI must feel like:
+
+> GitHub Actions + Datadog + CI dashboard
+
+---
+
+# 🧱 Backend API Reference
+
+Use these endpoints:
+
+```
+POST /api/webhook/github
+POST /api/pr/analyze/:id
+GET  /api/pr/:id
+GET  /api/logs/:id   (if implemented)
+```
+
+All UI logic is built around these.
+
+---
+
+# 🗂️ Folder Structure
+
+```
+src/
+ ├─ api/
+ │   api.js
+ │
+ ├─ pages/
+ │   Dashboard.jsx
+ │   PRDetails.jsx
+ │
+ ├─ components/
+ │   PRTable.jsx
+ │   PipelineView.jsx
+ │   LogViewer.jsx
+ │   SimulatePRModal.jsx
+ │   StatsBar.jsx
+ │
+ ├─ context/
+ │   PRContext.jsx
+ │
+ └─ App.jsx
+```
+
+---
+
+# 🧠 GLOBAL UI DESIGN RULES
+
+Tell Copilot:
+
+```
+Use Chakra UI v3 components.
+Dark theme only.
+Professional DevOps dashboard.
+No playful colors.
+Use gray/black palette.
+Use cards, tables, badges, progress bars.
+```
+
+Color scheme:
+
+```
+bg: gray.950
+card: gray.900
+border: gray.800
+text: gray.200
+accent: blue.400
+risk-high: red.400
+risk-medium: yellow.400
+risk-low: green.400
+```
+
+---
+
+# 🔧 STEP 1 — Setup API Client
+
+## Copilot prompt
+
+```
+Create api client module.
+
+File: src/api/api.js
+
+Functions:
+createPR(payload)
+analyzePR(prId)
+getPR(prId)
+getLogs(prId)
+
+Use axios.
+Base URL from env: VITE_API_URL
+```
+
+---
+
+# 🔧 STEP 2 — Global PR Context
+
+## Copilot prompt
+
+```
+Create PRContext using React context.
+
+Store:
+currentPR
+setCurrentPR
+logs
+setLogs
+
+Provide provider wrapper.
+```
+
+---
+
+# 🔧 STEP 3 — Dashboard Page
+
+This is main page.
+
+Shows:
+
+* simulate PR button
+* PR list
+* stats
+
+## Copilot prompt
+
+```
+Create Dashboard page.
+
+Layout:
+Sidebar
+Header
+Stats bar
+PR table
+Simulate PR button
+
+Use Chakra UI:
+Grid
+Flex
+Card
+Table
+Button
+
+Fetch recent PRs when page loads.
+```
+
+---
+
+# 🔧 STEP 4 — Simulate PR Modal
+
+This triggers backend.
+
+## Copilot prompt
+
+```
+Create SimulatePRModal component.
+
+Fields:
+repo
+author
+branch
+filesChanged (comma separated)
+
+On submit:
+POST /api/webhook/github
+
+Return prId.
+Close modal.
+Refresh dashboard.
+```
+
+---
+
+# 🔧 STEP 5 — PR Table Component
+
+Shows all PRs.
+
+## Copilot prompt
+
+```
+Create PRTable component.
+
+Columns:
+PR ID
+Author
+Branch
+Status
+Risk score
+Actions
+
+Status badge colors:
+received → gray
+analyzing → blue
+completed → green
+failed → red
+
+Click row → open PR details page.
+```
+
+---
+
+# 🔧 STEP 6 — PR Details Page
+
+This is the core screen.
+
+Shows:
+
+* risk score
+* modules impacted
+* selected tests
+* pipeline stages
+* logs
+
+## Copilot prompt
+
+```
+Create PRDetails page.
+
+Fetch PR by id.
+Show:
+
+Risk score card
+Modules impacted
+Selected tests
+Skipped tests
+Pipeline view
+Logs viewer
+Analyze button
+
+Analyze button:
+POST /api/pr/analyze/:id
+Then refetch PR every 2 seconds.
+```
+
+---
+
+# 🔧 STEP 7 — Pipeline View
+
+Visual pipeline stages.
+
+## Copilot prompt
+
+```
+Create PipelineView component.
+
+Stages:
+fetch_changes
+dependency_mapping
+risk_prediction
+test_selection
+test_execution
+report_upload
+
+Use Chakra:
+Stepper or Progress bar
+
+Each stage shows:
+status
+color
+```
+
+---
+
+# 🔧 STEP 8 — Log Viewer
+
+## Copilot prompt
+
+```
+Create LogViewer component.
+
+Fetch logs for PR.
+Show streaming list.
+Auto refresh every 2 seconds.
+Scrollable panel.
+Monospace font.
+```
+
+---
+
+# 🔧 STEP 9 — Stats Bar
+
+Shows metrics.
+
+## Copilot prompt
+
+```
+Create StatsBar component.
+
+Cards:
+Total PRs
+Avg risk
+Tests saved
+Time saved
+
+Use Chakra Stat components.
+```
+
+---
+
+# 🔧 STEP 10 — Routing
+
+## Copilot prompt
+
+```
+Setup React Router.
+
+Routes:
+/ → Dashboard
+/pr/:id → PRDetails
+```
+
+---
+
+# 🔧 STEP 11 — Theme Setup
+
+## Copilot prompt
+
+```
+Create Chakra dark theme.
+
+Primary colors:
+gray scale
+blue accent
+
+Apply global styles:
+bg: gray.950
+card bg: gray.900
+border: gray.800
+```
+
+---
+
+# 🔄 FRONTEND FLOW
+
+### Simulated PR
+
+```
+Click simulate
+→ POST webhook
+→ show in table
+→ click analyze
+→ pipeline runs
+→ logs update
+```
+
+### Real GitHub PR
+
+```
+PR opened on GitHub
+→ backend receives webhook
+→ appears in dashboard
+→ analyze
+```
+
+No UI change needed.
+
+---
+
+# 🧪 TEST PLAN
+
+### Test 1
+
+Simulate PR
+→ appears in dashboard
+
+### Test 2
+
+Analyze PR
+→ pipeline updates
+
+### Test 3
+
+Logs visible
+
+### Test 4
+
+Risk score visible
+
+---
+
+# 🧠 IMPORTANT COPILOT RULES
+
+Always tell Copilot:
+
+```
+Use Chakra UI components only.
+Do not invent components.
+Use Flex, Box, Grid, Card.
+No Tailwind.
+```
+
+---
+
+# 🧱 FINAL UI LOOK
+
+Should look like:
+
+* GitHub Actions dashboard
+* dark theme
 * minimal
-* serious
-* data-focused
-* enterprise-grade
+* professional
 
-Avoid playful or colorful UI.
+Not a student UI.
 
 ---
-
-# 🎨 COLOR SYSTEM
-
-## Background hierarchy
-
-Use deep black/grey tones only.
-
-```
-Primary background:     #0B0F14
-Secondary background:   #0F141A
-Card background:        #111827
-Sidebar background:     #0D1117
-Hover background:       rgba(255,255,255,0.04)
-Border color:           rgba(255,255,255,0.06)
-```
-
-No bright colors for large areas.
-
-Accent colors must be subtle and used only for status or actions.
-
----
-
-## Accent colors
-
-Use only for meaning.
-
-```
-Primary accent:   #4F46E5   (indigo)
-Success:          #22C55E
-Warning:          #F59E0B
-Danger:           #EF4444
-Info:             #06B6D4
-Muted text:       rgba(255,255,255,0.65)
-Faint text:       rgba(255,255,255,0.45)
-```
-
-Avoid gradients except for primary CTA button.
-
----
-
-# 🧱 LAYOUT SYSTEM
-
-## Overall layout
-
-Use a structured SaaS dashboard layout:
-
-* Left sidebar navigation
-* Top navbar
-* Content grid
-* Cards aligned in grid
-
-Max width:
-
-```
-1280px
-```
-
-Spacing:
-
-```
-8px base spacing scale
-```
-
-Use Chakra UI layout primitives only:
-
-* Box
-* Flex
-* Grid
-* Stack
-
-Do NOT invent layout components.
-
----
-
-# 🧾 TYPOGRAPHY
-
-Font family:
-
-```
-Inter, system-ui, sans-serif
-```
-
-Text rules:
-
-**Page titles**
-
-```
-font-size: 20–24px
-font-weight: 600
-letter-spacing: -0.02em
-```
-
-**Card titles**
-
-```
-font-size: 13px
-font-weight: 500
-text-transform: uppercase
-opacity: 0.7
-```
-
-**Numbers**
-
-```
-font-weight: 600
-```
-
-**Body**
-
-```
-font-size: 13–14px
-opacity: 0.85
-```
-
-Avoid large playful text.
-
----
-
-# 🧱 CARD DESIGN
-
-Cards must feel structured and professional.
-
-```
-Background: #111827
-Border: 1px solid rgba(255,255,255,0.05)
-Border radius: 8px
-Padding: 16px
-Shadow: none or very subtle
-```
-
-Hover:
-
-```
-background: rgba(255,255,255,0.02)
-```
-
-Avoid glassmorphism or heavy blur.
-
----
-
-# 🧭 SIDEBAR DESIGN
-
-Sidebar should look like engineering tooling.
-
-```
-Width: 260px
-Background: #0D1117
-Border-right: 1px solid rgba(255,255,255,0.06)
-```
-
-Active item:
-
-```
-background: rgba(79,70,229,0.12)
-border-left: 2px solid #4F46E5
-```
-
-Icons:
-
-```
-16px
-opacity: 0.7
-```
-
----
-
-# 🔘 BUTTON STYLING
-
-Primary button:
-
-```
-Background: #4F46E5
-Hover: #4338CA
-Radius: 8px
-Font-weight: 500
-```
-
-Secondary button:
-
-```
-Background: transparent
-Border: 1px solid rgba(255,255,255,0.1)
-```
-
-Avoid heavy gradients.
-
----
-
-# 📊 DATA VISUALIZATION
-
-Charts must use muted enterprise palette:
-
-```
-Primary: #4F46E5
-Secondary: #06B6D4
-Success: #22C55E
-Warning: #F59E0B
-Danger: #EF4444
-```
-
-Grid lines:
-
-```
-rgba(255,255,255,0.05)
-```
-
----
-
-# 🧪 STATUS BADGES
-
-Use subtle pill badges:
-
-```
-border-radius: 6px
-font-size: 11px
-padding: 2px 6px
-font-weight: 500
-```
-
-Examples:
-
-* Running → blue
-* Passed → green
-* Failed → red
-* High risk → red
-* Medium → yellow
-* Low → green
-
----
-
-# 🧠 INTERACTION DESIGN
-
-Animations must be minimal.
-
-Use:
-
-```
-transition: all 0.2s ease
-```
-
-Hover lift:
-
-```
-translateY(-1px)
-```
-
-Avoid flashy animations.
-
----
-
-# 🧩 COMPONENT RULES
-
-Always use official Chakra UI v3 components.
-
-Allowed:
-
-* Box
-* Flex
-* Grid
-* Card
-* Badge
-* Progress
-* Stat
-* Table
-* Tabs
-* Drawer
-* Tooltip
-
-Do NOT invent custom components unless necessary.
-
----
-
-# 🎯 VISUAL GOAL
-
-The UI should feel like:
-
-> A real internal DevOps platform used by senior engineers reviewing CI/CD pipelines.
-
-Not:
-
-> A student project or colorful marketing site.
-
----
-
-# 🧠 AI CODING AGENT INSTRUCTIONS
-
-When generating UI:
-
-* Use Chakra UI v3 components only
-* Follow enterprise dark theme
-* Use black/grey palette
-* Keep spacing tight
-* Prioritize readability and structure
-* Avoid playful styles
-* Avoid large gradients
-* Avoid bright colors
-
-Always prefer:
-
-```
-structured, minimal, professional
-```
-
-over:
-
-```
-colorful, decorative, playful
-```
-
----
-
-# 🏁 END RESULT
-
-The dashboard must look:
-
-* sharp
-* minimal
-* serious
-* engineering-focused
-* production-ready
-
-Like a tool used by DevOps teams in real companies.

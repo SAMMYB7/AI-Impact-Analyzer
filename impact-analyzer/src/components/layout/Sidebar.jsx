@@ -26,7 +26,7 @@ import {
   LuChevronRight,
 } from "react-icons/lu";
 import { useState } from "react";
-import { useSimulation } from "../../hooks/useSimulation";
+import { useSimulation } from "../../hooks/useSimulationHook";
 import { useThemeColors } from "../../hooks/useThemeColors";
 
 const NAV_ITEMS = [

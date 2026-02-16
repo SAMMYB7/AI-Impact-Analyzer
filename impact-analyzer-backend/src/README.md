@@ -1,245 +1,177 @@
-# 🧠 PHASE-4 GOAL
+# 🧠 What Phase-5 will do
 
-Turn the backend into a cloud-native service that can later plug into real AWS instantly.
+Right now:
 
-We will add:
+```
+Frontend → /webhook/github → backend
+```
 
-### 1️⃣ SageMaker integration layer (stub now)
+After Phase-5:
 
-### 2️⃣ S3 report storage
+```
+GitHub PR → webhook → backend → analyzer
+```
 
-### 3️⃣ Replace mock risk generator with ML call wrapper
+But simulation will still work too.
 
-### 4️⃣ Pipeline execution abstraction
+So your backend will support:
 
-We will NOT call real SageMaker yet.
-We just create the service so when endpoint exists, it works immediately.
+* simulated PRs
+* real GitHub PRs
+
+Best of both worlds.
 
 ---
 
-# 🏗️ PHASE-4 ARCHITECTURE
+# 🧱 Phase-5 Implementation Plan
 
-New services:
+We’ll do this in this order:
 
-```
-src/services/
-  sagemakerService.js
-  s3Service.js
-  awsConfig.js
-```
+### Step 1 — Update webhook controller to accept GitHub payload
 
-Analyzer flow becomes:
+### Step 2 — Add GitHub service (fetch changed files)
 
-```
-analyzerService
-   ↓
-sagemakerService.predictImpact()
-   ↓
-returns risk score
-```
+### Step 3 — Add environment variables
 
-If endpoint not ready → fallback to mock.
+### Step 4 — Setup ngrok
 
-This makes backend **plug-and-play**.
+### Step 5 — Configure GitHub webhook
+
+We start with backend changes first.
 
 ---
 
-# 🟣 STEP 1 — AWS CONFIG FILE
+# 🟣 STEP 1 — Update webhook controller for GitHub payload
 
-Create:
+Your controller currently expects:
 
 ```
-src/config/aws.js
+repo, author, branch, filesChanged
 ```
 
-This centralizes AWS setup.
+GitHub sends:
+
+```
+repository.name
+pull_request.user.login
+pull_request.head.ref
+```
+
+We need to support both.
 
 ---
 
-## 🤖 Copilot prompt
-
-Paste:
+## Copilot prompt to paste
 
 ```
-Create AWS config module.
+Refactor webhookController to support both simulated payloads and real GitHub pull request webhook payloads.
 
-Requirements:
-- load region from env
-- export sagemaker client
-- export s3 client
-- use AWS SDK v3
-- do not call endpoints yet
+If request body contains "pull_request":
+- repo = repository.name
+- author = pull_request.user.login
+- branch = pull_request.head.ref
+- prId = "GH-" + pull_request.id
+- filesChanged should be fetched later from GitHub API
+- for now use placeholder array ["placeholder.js"]
+
+If request body contains simulated fields:
+- keep existing logic
+
+Both flows must:
+- create PullRequest document
+- create PipelineRun
+- log event
+- return prId
 ```
 
-It should generate something like:
+Let Copilot update your controller.
 
-```
-SageMakerRuntimeClient
-S3Client
-```
-
-We keep it clean.
+Do not remove simulation logic.
 
 ---
 
-# 🟣 STEP 2 — SAGEMAKER SERVICE (STUB)
+# 🟣 STEP 2 — Create GitHub service (for later file fetching)
 
-Create:
+GitHub webhook does NOT include changed files.
+
+We must fetch them using GitHub API.
+
+Create file:
 
 ```
-src/services/sagemakerService.js
+src/services/githubService.js
 ```
-
-This will wrap ML inference.
 
 ---
 
-## 🤖 Copilot prompt
+## Copilot prompt
 
 ```
-Create sagemakerService.
+Create githubService.
 
 Function:
-predictImpact(payload)
+getChangedFiles(owner, repo, prNumber)
 
-If SAGEMAKER_ENDPOINT not set:
-- return mock risk score
+Use GitHub REST API:
+GET /repos/{owner}/{repo}/pulls/{prNumber}/files
 
-If endpoint exists:
-- call SageMaker runtime invokeEndpoint
-- return riskScore + confidence
+Return array of file paths.
 
-Do not crash if endpoint missing.
+If no token provided:
+return mock files.
+
+Use axios.
+Read token from process.env.GITHUB_TOKEN.
 ```
 
-This allows:
-
-* development without SageMaker
-* instant plug later
+We won’t call it yet — just prepare it.
 
 ---
 
-# 🟣 STEP 3 — S3 SERVICE
+# 🟣 STEP 3 — ENV variables
 
-Create:
+Add to `.env`:
 
 ```
-src/services/s3Service.js
+GITHUB_TOKEN=your_token_here
+GITHUB_OWNER=your_username
 ```
 
-Used for:
+Token permissions:
 
-* storing reports
-* logs
-* metrics
+```
+repo
+```
+
+You generate it from GitHub → Developer Settings → PAT.
+
+We’ll use this in Phase-6.
 
 ---
 
-## 🤖 Copilot prompt
+# 🟣 STEP 4 — Add auto-analysis toggle (optional)
+
+Inside webhook controller, after PR created:
 
 ```
-Create s3Service.
-
-Functions:
-uploadReport(prId, data)
-getReport(prId)
-
-Use S3 client from aws config.
-If S3 bucket not set:
-- just log and return mock URL
+if process.env.AUTO_ANALYZE === "true":
+   call analyzerService.analyzePullRequest(prId)
 ```
+
+Keep default false.
 
 ---
 
-# 🟣 STEP 4 — MODIFY ANALYZER SERVICE
+# 🟣 STEP 5 — Test locally with simulated payload first
 
-Right now you use:
-
-```
-mockRiskScore()
-```
-
-Replace with:
+Make sure:
 
 ```
-const { predictImpact } = require("./sagemakerService");
+POST /api/webhook/github
 ```
 
-Then:
+still works with manual payload.
 
-```
-const { riskScore, confidence } = await predictImpact({
-  filesChanged: pr.filesChanged,
-  modules: allModules
-});
-```
-
-If endpoint missing → returns mock.
-
-So analyzer becomes AWS-ready.
-
----
-
-# 🟣 STEP 5 — REPORT STORAGE
-
-After analysis completes:
-
-```
-await s3Service.uploadReport(prId, {
-  riskScore,
-  modules,
-  tests
-});
-```
-
-Store JSON.
-
-Later frontend can fetch.
-
----
-
-# 🧠 WHY THIS MATTERS
-
-Your architecture is supposed to be:
-
-```
-GitHub → backend → SageMaker → CodeBuild → S3 → dashboard
-```
-
-Right now you only need:
-
-```
-backend → SageMaker → S3
-```
-
-Which is Phase-4.
-
-This aligns with your system plan where SageMaker predicts impact and S3 stores results. 
-
----
-
-# 🟢 PHASE-4 ORDER
-
-Follow exactly:
-
-### Step 1
-
-aws.js config
-
-### Step 2
-
-sagemakerService stub
-
-### Step 3
-
-s3Service stub
-
-### Step 4
-
-modify analyzerService
-
-### Step 5
-
-test with simulated PR
+Then we connect GitHub.
 
 ---

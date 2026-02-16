@@ -1,398 +1,366 @@
 // ═══════════════════════════════════════════════════════════════
-// LOGS PAGE — System logs viewer with severity badges and streaming
+// LOGS PAGE — Centralized log aggregation across all PRs
 // ═══════════════════════════════════════════════════════════════
 
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Flex,
   Text,
+  Grid,
   Icon,
-  VStack,
+  Spinner,
   Badge,
-  Separator,
+  Input,
+  VStack,
 } from "@chakra-ui/react";
-import { useState, useMemo } from "react";
 import {
   LuScrollText,
-  LuFilter,
-  LuServer,
-  LuBrain,
-  LuTestTubeDiagonal,
+  LuInfo,
+  LuTriangleAlert,
+  LuCircleX,
+  LuBug,
   LuSearch,
-  LuDownload,
+  LuFilter,
 } from "react-icons/lu";
-import { useSimulation } from "../hooks/useSimulation";
-import { useThemeColors } from "../hooks/useThemeColors";
 import GlassCard from "../components/shared/GlassCard";
+import StatCard from "../components/shared/StatCard";
+import { useThemeColors } from "../hooks/useThemeColors";
+import { getAllLogs } from "../api/api";
 
-const LOG_TYPES = [
-  { key: "all", label: "All Logs", icon: LuScrollText, color: "#4F46E5" },
-  { key: "lambda", label: "Lambda", icon: LuServer, color: "#f59e0b" },
-  { key: "model", label: "Model Inference", icon: LuBrain, color: "#8B5CF6" },
-  {
-    key: "runner",
-    label: "Test Runner",
-    icon: LuTestTubeDiagonal,
-    color: "#22C55E",
-  },
-];
-
-const SEVERITY_COLORS = {
-  INFO: "#22C55E",
-  DEBUG: "#8B5CF6",
-  WARN: "#f59e0b",
-  ERROR: "#ef4444",
+const LEVEL_CONFIG = {
+  info: { color: "#3b82f6", icon: LuInfo, label: "INFO" },
+  warn: { color: "#f59e0b", icon: LuTriangleAlert, label: "WARN" },
+  error: { color: "#ef4444", icon: LuCircleX, label: "ERROR" },
+  debug: { color: "#8b5cf6", icon: LuBug, label: "DEBUG" },
 };
 
-// Pre-generate multiple sets of logs for the viewer
-function generateMultipleLogSets() {
-  const sets = [];
+export default function LogsPage() {
+  const t = useThemeColors();
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all"); // all, info, warn, error, debug
+  const [search, setSearch] = useState("");
+  const bottomRef = useRef(null);
 
-  // Create a rich log history
-  const baseTimestamp = new Date("2026-02-12T06:00:00.000Z");
+  useEffect(() => {
+    let ignore = false;
 
-  const logTemplates = [
-    {
-      level: "INFO",
-      service: "lambda",
-      messages: [
-        "Webhook handler initialized — listening on /api/webhooks/github",
-        "Health check passed — all downstream services responding",
-        "Rate limiter configured: 100 req/min per repository",
-        "PR webhook received from GitHub — event: pull_request.synchronize",
-        "Fetching changed files for PR #{pr} from GitHub API...",
-        "Retrieved {n} changed files across {m} modules",
-        "Lambda execution completed — Duration: {d}ms, Memory: 256MB",
-        "Response sent to GitHub — status: 200 OK",
-      ],
-    },
-    {
-      level: "DEBUG",
-      service: "lambda",
-      messages: [
-        "File diff analysis: +{a} -{b} lines across src/**/*",
-        "GitHub API rate limit remaining: {n}/5000",
-        "DynamoDB write: analysis_results table — consumed 5 WCU",
-        "CloudWatch metric published: AnalysisLatency={d}ms",
-      ],
-    },
-    {
-      level: "WARN",
-      service: "lambda",
-      messages: [
-        "Cold start detected — consider provisioned concurrency",
-        "GitHub API rate limit at 15% — throttling enabled",
-        "Retry attempt 2/3 for GitHub API call — 503 response",
-      ],
-    },
-    {
-      level: "INFO",
-      service: "model",
-      messages: [
-        "Impact analysis model initialized — TensorFlow Serving v2.14",
-        "Feature extraction complete — 128-dim embedding per file",
-        "Risk prediction: {risk} (score: {score}/100, confidence: {conf}%)",
-        "Impacted modules identified: {modules}",
-        "Test selection optimized: {selected}/{total} tests selected",
-        "Inference completed — Latency: {d}ms, GPU utilization: {gpu}%",
-        "Model cache hit — skipping feature extraction",
-      ],
-    },
-    {
-      level: "DEBUG",
-      service: "model",
-      messages: [
-        "Loading dependency graph from Neo4j — 847 nodes, 2341 edges",
-        "Running attention mechanism over dependency chains...",
-        "Cross-module impact propagation: auth → api-gateway (0.89)",
-        "Batch inference: processing 3 PRs in parallel",
-      ],
-    },
-    {
-      level: "INFO",
-      service: "runner",
-      messages: [
-        "═══ Test Execution Engine v3.2.0 ═══",
-        "Initializing test environment — Node.js v20.11, Jest v30.0",
-        "Loading {n} selected test files...",
-        "Running {test} .............. PASS ({d}s)",
-        "Tests: {passed} passed, {failed} failed, {total} total",
-        "Time: {d}s",
-        "Coverage: {cov}% statements, {br}% branches",
-      ],
-    },
-    {
-      level: "WARN",
-      service: "runner",
-      messages: [
-        "Running rate-limiter.spec.ts ....X.......... FAIL (1.56s)",
-        "Test timeout warning: cache.integration.spec.ts exceeded 5s threshold",
-      ],
-    },
-    {
-      level: "ERROR",
-      service: "runner",
-      messages: [
-        "✗ should enforce sliding window — Expected 429, received 200",
-        "Assertion failed: expected cache TTL to be 3600, got 7200",
-      ],
-    },
-    {
-      level: "ERROR",
-      service: "lambda",
-      messages: ["Unhandled promise rejection in webhook handler — retrying"],
-    },
-  ];
+    async function fetchLogs() {
+      try {
+        const data = await getAllLogs();
+        if (!ignore) setLogs(data);
+      } catch (err) {
+        console.error("Failed to load logs:", err);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
 
-  // Generate 80+ log entries
-  for (let i = 0; i < 85; i++) {
-    const template =
-      logTemplates[Math.floor(Math.random() * logTemplates.length)];
-    const message = template.messages[
-      Math.floor(Math.random() * template.messages.length)
-    ]
-      .replace("{pr}", Math.floor(1240 + Math.random() * 10))
-      .replace("{n}", Math.floor(3 + Math.random() * 15))
-      .replace("{m}", Math.floor(2 + Math.random() * 5))
-      .replace("{d}", Math.floor(100 + Math.random() * 3000))
-      .replace("{a}", Math.floor(20 + Math.random() * 400))
-      .replace("{b}", Math.floor(5 + Math.random() * 150))
-      .replace(
-        "{risk}",
-        ["LOW", "MEDIUM", "HIGH"][Math.floor(Math.random() * 3)],
-      )
-      .replace("{score}", Math.floor(20 + Math.random() * 75))
-      .replace("{conf}", (75 + Math.random() * 20).toFixed(1))
-      .replace("{modules}", "Authentication, API Gateway")
-      .replace("{selected}", Math.floor(10 + Math.random() * 20))
-      .replace("{total}", Math.floor(30 + Math.random() * 30))
-      .replace("{gpu}", Math.floor(15 + Math.random() * 50))
-      .replace(
-        "{test}",
-        [
-          "auth.middleware.spec.ts",
-          "jwt.service.spec.ts",
-          "redis.client.spec.ts",
-          "router.spec.ts",
-        ][Math.floor(Math.random() * 4)],
-      )
-      .replace("{passed}", Math.floor(14 + Math.random() * 6))
-      .replace("{failed}", Math.floor(Math.random() * 3))
-      .replace("{cov}", (80 + Math.random() * 15).toFixed(1))
-      .replace("{br}", (75 + Math.random() * 15).toFixed(1));
+    fetchLogs();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
-    const ts = new Date(
-      baseTimestamp.getTime() + i * (60000 + Math.random() * 180000),
+  // Filter and search
+  const filtered = logs
+    .filter((log) => filter === "all" || log.level === filter)
+    .filter(
+      (log) =>
+        search === "" ||
+        log.message.toLowerCase().includes(search.toLowerCase()) ||
+        log.prId.toLowerCase().includes(search.toLowerCase()) ||
+        log.stage.toLowerCase().includes(search.toLowerCase()),
     );
 
-    sets.push({
-      ts: ts.toISOString(),
-      level: template.level,
-      service: template.service,
-      message,
-    });
+  // Stats
+  const infoCount = logs.filter((l) => l.level === "info").length;
+  const warnCount = logs.filter((l) => l.level === "warn").length;
+  const errorCount = logs.filter((l) => l.level === "error").length;
+  const debugCount = logs.filter((l) => l.level === "debug").length;
+
+  // Unique PRs in logs
+  const uniquePRs = [...new Set(logs.map((l) => l.prId))].length;
+
+  if (loading) {
+    return (
+      <Flex align="center" justify="center" h="60vh" gap="3">
+        <Spinner size="md" color="#3b82f6" />
+        <Text color={t.textMuted}>Loading logs...</Text>
+      </Flex>
+    );
   }
 
-  return sets.sort((a, b) => a.ts.localeCompare(b.ts));
-}
-
-const ALL_LOGS = generateMultipleLogSets();
-
-export default function LogsPage() {
-  const [activeType, setActiveType] = useState("all");
-  const [severityFilter, setSeverityFilter] = useState("all");
-  useSimulation();
-  const t = useThemeColors();
-
-  const filteredLogs = useMemo(() => {
-    let logs = ALL_LOGS;
-    if (activeType !== "all") {
-      logs = logs.filter((l) => l.service === activeType);
-    }
-    if (severityFilter !== "all") {
-      logs = logs.filter((l) => l.level === severityFilter);
-    }
-    return logs;
-  }, [activeType, severityFilter]);
-
   return (
-    <Box className="page-enter">
-      {/* Filters */}
-      <Flex gap="4" mb="6" flexWrap="wrap" justify="space-between">
-        <Flex gap="2">
-          {LOG_TYPES.map((type) => (
-            <Flex
-              key={type.key}
-              align="center"
-              gap="2"
-              bg={activeType === type.key ? `${type.color}15` : t.bgSubtle}
-              border={`1px solid ${activeType === type.key ? `${type.color}40` : t.border}`}
-              px="3"
-              py="2"
-              borderRadius="lg"
-              cursor="pointer"
-              onClick={() => setActiveType(type.key)}
-              transition="all 0.2s"
-              _hover={{ bg: `${type.color}10` }}
+    <Box>
+      {/* Header */}
+      <Box mb="6">
+        <Flex align="center" gap="3" mb="1">
+          <Flex
+            w="36px"
+            h="36px"
+            borderRadius="lg"
+            bg="rgba(100,116,139,0.1)"
+            align="center"
+            justify="center"
+          >
+            <Icon color="#64748b" boxSize="5">
+              <LuScrollText />
+            </Icon>
+          </Flex>
+          <Box>
+            <Text
+              fontSize="20px"
+              fontWeight="800"
+              color={t.textPrimary}
+              letterSpacing="-0.02em"
             >
-              <Icon
-                color={activeType === type.key ? type.color : t.textMuted}
-                boxSize="3.5"
-              >
-                <type.icon />
-              </Icon>
-              <Text
-                fontSize="xs"
-                color={activeType === type.key ? type.color : t.textMuted}
-                fontWeight={activeType === type.key ? "600" : "400"}
-              >
-                {type.label}
-              </Text>
-            </Flex>
-          ))}
+              System Logs
+            </Text>
+            <Text fontSize="13px" color={t.textMuted}>
+              Centralized log aggregation across all analysis runs
+            </Text>
+          </Box>
         </Flex>
+      </Box>
 
-        <Flex gap="2">
-          {["all", "INFO", "DEBUG", "WARN", "ERROR"].map((sev) => (
-            <Flex
-              key={sev}
-              align="center"
-              bg={severityFilter === sev ? t.bgHover : t.bgSubtle}
-              px="3"
-              py="1.5"
-              borderRadius="md"
-              cursor="pointer"
-              onClick={() => setSeverityFilter(sev)}
-              border={`1px solid ${severityFilter === sev ? t.border : t.borderLight}`}
-              _hover={{ bg: t.bgHover }}
-            >
-              <Text
-                fontSize="10px"
-                fontWeight="600"
-                color={
-                  sev === "all"
-                    ? t.textSecondary
-                    : SEVERITY_COLORS[sev] || t.textMuted
-                }
-                textTransform="uppercase"
-              >
-                {sev === "all" ? "All" : sev}
-              </Text>
-            </Flex>
-          ))}
-        </Flex>
-      </Flex>
+      {/* Stats */}
+      <Grid
+        templateColumns={{ base: "1fr", sm: "1fr 1fr", lg: "repeat(4, 1fr)" }}
+        gap="4"
+        mb="6"
+      >
+        <StatCard
+          label="Total Logs"
+          value={logs.length}
+          icon={<LuScrollText />}
+          iconColor="#64748b"
+        />
+        <StatCard
+          label="Info"
+          value={infoCount}
+          icon={<LuInfo />}
+          iconColor="#3b82f6"
+        />
+        <StatCard
+          label="Warnings"
+          value={warnCount}
+          icon={<LuTriangleAlert />}
+          iconColor="#f59e0b"
+        />
+        <StatCard
+          label="Errors"
+          value={errorCount}
+          icon={<LuCircleX />}
+          iconColor="#ef4444"
+        />
+      </Grid>
 
-      {/* Log Count */}
-      <Flex justify="space-between" align="center" mb="3">
-        <Text fontSize="xs" color={t.textFaint}>
-          Showing {filteredLogs.length} log entries
-        </Text>
-        <Flex
-          align="center"
-          gap="2"
-          cursor="pointer"
-          _hover={{ color: "#818CF8" }}
-          transition="all 0.2s"
-        >
-          <Icon color={t.textFaint} boxSize="3.5">
-            <LuDownload />
-          </Icon>
-          <Text fontSize="xs" color={t.textMuted}>
-            Export Logs
-          </Text>
-        </Flex>
-      </Flex>
-
-      {/* Log Viewer */}
-      <GlassCard noPadding overflow="hidden">
-        <Box
-          maxH="600px"
-          overflowY="auto"
-          fontFamily="'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace"
-          fontSize="11px"
-          css={{
-            "&::-webkit-scrollbar": { width: "6px" },
-            "&::-webkit-scrollbar-track": { bg: t.bgSubtle },
-            "&::-webkit-scrollbar-thumb": {
-              bg: t.scrollThumb,
-              borderRadius: "3px",
-            },
-          }}
-        >
-          {filteredLogs.map((log, i) => (
-            <Flex
-              key={i}
-              gap="3"
-              px="4"
-              py="1.5"
-              _hover={{ bg: t.bgSubtle }}
-              borderBottom={`1px solid ${t.borderLight}`}
-              align="flex-start"
-            >
-              {/* Timestamp */}
-              <Text
-                color={t.textFaint}
-                whiteSpace="nowrap"
-                flexShrink="0"
-                fontSize="10px"
-                mt="1px"
-              >
-                {new Date(log.ts).toLocaleTimeString("en-US", {
-                  hour12: false,
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-                .
-                {new Date(log.ts).getMilliseconds().toString().padStart(3, "0")}
-              </Text>
-
-              {/* Severity Badge */}
-              <Flex
-                bg={`${SEVERITY_COLORS[log.level]}15`}
-                px="1.5"
-                py="0.5"
-                borderRadius="sm"
-                minW="45px"
-                justify="center"
-                flexShrink="0"
-              >
-                <Text
-                  fontSize="9px"
-                  fontWeight="700"
-                  color={SEVERITY_COLORS[log.level]}
+      {/* Search + Filters */}
+      <GlassCard>
+        <Flex gap="3" flexWrap="wrap" align="center">
+          <Flex
+            align="center"
+            flex="1"
+            minW="200px"
+            bg={t.bgInput}
+            borderRadius="lg"
+            border={`1px solid ${t.border}`}
+            px="3"
+            gap="2"
+          >
+            <Icon color={t.textFaint} boxSize="4">
+              <LuSearch />
+            </Icon>
+            <Input
+              placeholder="Search logs by message, PR, or stage..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              variant="unstyled"
+              fontSize="13px"
+              color={t.textPrimary}
+              py="2.5"
+              _placeholder={{ color: t.textFaint }}
+            />
+          </Flex>
+          <Flex gap="1.5" align="center">
+            <Icon color={t.textFaint} boxSize="3.5">
+              <LuFilter />
+            </Icon>
+            {["all", "info", "warn", "error", "debug"].map((level) => {
+              const isActive = filter === level;
+              const cfg = level !== "all" ? LEVEL_CONFIG[level] : null;
+              return (
+                <Box
+                  key={level}
+                  as="button"
+                  px="3"
+                  py="1.5"
+                  borderRadius="md"
+                  fontSize="11px"
+                  fontWeight="600"
+                  textTransform="uppercase"
+                  letterSpacing="0.04em"
+                  bg={
+                    isActive ? (cfg?.color || t.accent) + "18" : "transparent"
+                  }
+                  color={isActive ? cfg?.color || t.accent : t.textMuted}
+                  border={`1px solid ${isActive ? (cfg?.color || t.accent) + "30" : "transparent"}`}
+                  cursor="pointer"
+                  transition="all 0.15s"
+                  _hover={{
+                    bg: (cfg?.color || t.accent) + "10",
+                  }}
+                  onClick={() => setFilter(level)}
                 >
-                  {log.level}
+                  {level}
+                </Box>
+              );
+            })}
+          </Flex>
+        </Flex>
+      </GlassCard>
+
+      {/* Log stream */}
+      <Box mt="4">
+        <GlassCard noPadding>
+          <Box px="4" py="3" borderBottom={`1px solid ${t.border}`}>
+            <Flex justify="space-between" align="center">
+              <Text
+                fontSize="11px"
+                fontWeight="600"
+                textTransform="uppercase"
+                letterSpacing="0.08em"
+                color={t.textMuted}
+              >
+                Log Stream ({filtered.length})
+              </Text>
+              <Text fontSize="10px" color={t.textFaint}>
+                {uniquePRs} PRs
+              </Text>
+            </Flex>
+          </Box>
+          <Box
+            maxH="600px"
+            overflowY="auto"
+            px="4"
+            py="3"
+            css={{
+              "&::-webkit-scrollbar": { width: "5px" },
+              "&::-webkit-scrollbar-track": { bg: "transparent" },
+              "&::-webkit-scrollbar-thumb": {
+                bg: t.scrollThumb,
+                borderRadius: "3px",
+              },
+            }}
+          >
+            {filtered.length === 0 ? (
+              <Flex align="center" justify="center" py="12">
+                <Text color={t.textFaint} fontSize="sm">
+                  {search
+                    ? "No logs match your search"
+                    : "No logs available yet"}
                 </Text>
               </Flex>
+            ) : (
+              <VStack gap="1" align="stretch">
+                {filtered.map((log, i) => {
+                  const cfg = LEVEL_CONFIG[log.level] || LEVEL_CONFIG.info;
+                  const IconComp = cfg.icon;
+                  return (
+                    <Flex
+                      key={log._id || i}
+                      align="flex-start"
+                      gap="3"
+                      py="2"
+                      px="2"
+                      borderRadius="md"
+                      _hover={{ bg: t.bgHover }}
+                      transition="background 0.1s"
+                    >
+                      {/* Level icon */}
+                      <Flex
+                        w="22px"
+                        h="22px"
+                        borderRadius="md"
+                        bg={`${cfg.color}15`}
+                        align="center"
+                        justify="center"
+                        flexShrink="0"
+                        mt="1"
+                      >
+                        <Icon color={cfg.color} boxSize="3">
+                          <IconComp />
+                        </Icon>
+                      </Flex>
 
-              {/* Service */}
-              <Text
-                color={
-                  log.service === "lambda"
-                    ? "#f59e0b"
-                    : log.service === "model"
-                      ? "#A5B4FC"
-                      : "#818CF8"
-                }
-                fontWeight="500"
-                fontSize="10px"
-                minW="50px"
-                flexShrink="0"
-                mt="1px"
-              >
-                [{log.service}]
-              </Text>
+                      {/* Content */}
+                      <Box flex="1" minW="0">
+                        <Flex gap="2" align="center" mb="0.5" flexWrap="wrap">
+                          <Badge
+                            bg={`${cfg.color}12`}
+                            color={cfg.color}
+                            borderRadius="md"
+                            px="1.5"
+                            py="0"
+                            fontSize="9px"
+                            fontWeight="700"
+                            textTransform="uppercase"
+                          >
+                            {cfg.label}
+                          </Badge>
+                          <Badge
+                            bg="rgba(139,92,246,0.08)"
+                            color="#a78bfa"
+                            borderRadius="md"
+                            px="1.5"
+                            py="0"
+                            fontSize="9px"
+                            fontFamily="mono"
+                          >
+                            {log.stage}
+                          </Badge>
+                          <Text
+                            fontSize="10px"
+                            color={t.accent}
+                            fontFamily="mono"
+                            fontWeight="500"
+                          >
+                            {log.prId.length > 16
+                              ? `...${log.prId.slice(-10)}`
+                              : log.prId}
+                          </Text>
+                        </Flex>
+                        <Text
+                          fontSize="12px"
+                          color={t.textSecondary}
+                          fontFamily="mono"
+                          lineHeight="1.5"
+                        >
+                          {log.message}
+                        </Text>
+                      </Box>
 
-              {/* Message */}
-              <Text color={t.textSecondary} lineHeight="1.5" flex="1">
-                {log.message}
-              </Text>
-            </Flex>
-          ))}
-        </Box>
-      </GlassCard>
+                      {/* Timestamp */}
+                      <Text
+                        fontSize="10px"
+                        color={t.textFaint}
+                        fontFamily="mono"
+                        flexShrink="0"
+                        mt="1"
+                      >
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </Text>
+                    </Flex>
+                  );
+                })}
+                <div ref={bottomRef} />
+              </VStack>
+            )}
+          </Box>
+        </GlassCard>
+      </Box>
     </Box>
   );
 }

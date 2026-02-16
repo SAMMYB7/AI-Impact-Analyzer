@@ -1,6 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { getPRById, analyzePR } = require("../controllers/prController");
+const {
+  getAllPRs,
+  getPRById,
+  analyzePR,
+} = require("../controllers/prController");
+
+// GET /api/pr — list all PRs
+router.get("/", getAllPRs);
 
 // GET /api/pr/:id — fetch a PR by prId
 router.get("/:id", getPRById);
