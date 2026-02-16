@@ -1,0 +1,363 @@
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL STYLES — Professional enterprise design system
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+
+:root {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Dark Theme (default) — Slate/Emerald ─────────────────── */
+:root,
+.dark {
+  color-scheme: dark;
+  --bg-main: #0c0f1a;
+  --bg-card: rgba(17, 21, 38, 0.72);
+  --bg-sidebar: rgba(12, 15, 28, 0.92);
+  --bg-navbar: rgba(12, 15, 28, 0.75);
+  --bg-subtle: rgba(255, 255, 255, 0.025);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-input: rgba(255, 255, 255, 0.035);
+  --border-color: rgba(255, 255, 255, 0.055);
+  --text-primary: #f1f5f9;
+  --text-secondary: rgba(241, 245, 249, 0.72);
+  --text-muted: rgba(241, 245, 249, 0.48);
+  --text-faint: rgba(241, 245, 249, 0.32);
+  --scroll-thumb: rgba(255, 255, 255, 0.06);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.12);
+  --shimmer-1: rgba(255, 255, 255, 0.015);
+  --shimmer-2: rgba(255, 255, 255, 0.05);
+  --selection-bg: rgba(20, 184, 166, 0.3);
+  --selection-color: white;
+  --mesh-1: rgba(139, 92, 246, 0.04);
+  --mesh-2: rgba(20, 184, 166, 0.03);
+  --mesh-3: rgba(59, 130, 246, 0.02);
+  --accent: #14b8a6;
+  --accent-text: #5eead4;
+  color: var(--text-primary);
+  background-color: var(--bg-main);
+}
+
+/* ── Light Theme ──────────────────────────────────────────── */
+.light {
+  color-scheme: light;
+  --bg-main: #f4f6f9;
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-sidebar: rgba(255, 255, 255, 0.98);
+  --bg-navbar: rgba(255, 255, 255, 0.88);
+  --bg-subtle: rgba(0, 0, 0, 0.018);
+  --bg-hover: rgba(0, 0, 0, 0.03);
+  --bg-input: rgba(0, 0, 0, 0.035);
+  --border-color: rgba(0, 0, 0, 0.07);
+  --text-primary: #0f172a;
+  --text-secondary: rgba(15, 23, 42, 0.68);
+  --text-muted: rgba(15, 23, 42, 0.44);
+  --text-faint: rgba(15, 23, 42, 0.3);
+  --scroll-thumb: rgba(0, 0, 0, 0.1);
+  --scroll-thumb-hover: rgba(0, 0, 0, 0.18);
+  --shimmer-1: rgba(0, 0, 0, 0.02);
+  --shimmer-2: rgba(0, 0, 0, 0.05);
+  --selection-bg: rgba(13, 148, 136, 0.2);
+  --selection-color: #0f172a;
+  --mesh-1: rgba(139, 92, 246, 0.03);
+  --mesh-2: rgba(20, 184, 166, 0.02);
+  --mesh-3: rgba(59, 130, 246, 0.015);
+  --accent: #0d9488;
+  --accent-text: #0d9488;
+  color: var(--text-primary);
+  background-color: var(--bg-main);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-main);
+  overflow: hidden;
+  height: 100vh;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+#root {
+  height: 100vh;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+/* ── Animations — Smooth & Professional ────────────────────── */
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(20, 184, 166, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(20, 184, 166, 0.3);
+  }
+}
+
+@keyframes subtleGlow {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes backgroundShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes borderPulse {
+  0%,
+  100% {
+    border-color: rgba(20, 184, 166, 0.15);
+  }
+  50% {
+    border-color: rgba(20, 184, 166, 0.4);
+  }
+}
+
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressFill {
+  from {
+    width: 0%;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Shimmer skeleton effect */
+[data-shimmer] {
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-1) 25%,
+    var(--shimmer-2) 50%,
+    var(--shimmer-1) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Background Gradient Mesh — Subtle & Professional ──────── */
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 15% 15%, var(--mesh-1) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, var(--mesh-2) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, var(--mesh-3) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+  transition: background 0.4s ease;
+}
+
+/* ── Selection ─────────────────────────────────────────────── */
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-color);
+}
+
+/* ── Link Styles ───────────────────────────────────────────── */
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ── Focus Styles ──────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid rgba(20, 184, 166, 0.5);
+  outline-offset: 2px;
+}
+
+/* ── Smooth page transitions ───────────────────────────────── */
+.page-enter {
+  animation: fadeInUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── Card hover lift ───────────────────────────────────────── */
+.card-interactive {
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card-interactive:hover {
+  transform: translateY(-2px);
+}
