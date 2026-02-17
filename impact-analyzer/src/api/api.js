@@ -10,9 +10,9 @@ const API = axios.create({
 
 // ── PR Endpoints ─────────────────────────────────────────────
 
-// Create a simulated PR (POST /api/webhook/github)
+// Create a simulated PR (POST /api/webhook/simulate)
 export async function createPR(payload) {
-  const res = await API.post("/api/webhook/github", payload);
+  const res = await API.post("/api/webhook/simulate", payload);
   return res.data;
 }
 
