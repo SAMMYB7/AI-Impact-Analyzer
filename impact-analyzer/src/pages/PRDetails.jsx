@@ -25,6 +25,7 @@ import {
   LuTestTubes,
   LuClock,
   LuPackage,
+  LuTimer,
 } from "react-icons/lu";
 import GlassCard from "../components/shared/GlassCard";
 import StatusBadge from "../components/shared/StatusBadge";
@@ -44,7 +45,9 @@ export default function PRDetails() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [countdown, setCountdown] = useState(null); // seconds remaining
   const pollRef = useRef(null);
+  const countdownRef = useRef(null);
 
   // Fetch PR + logs
   const fetchData = useCallback(async () => {
@@ -63,8 +66,49 @@ export default function PRDetails() {
     fetchData();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [fetchData]);
+
+  // ── Countdown timer for auto-analysis ─────────────────────
+  useEffect(() => {
+    // Clear any existing countdown
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+
+    if (pr?.status === "received" && pr?.autoAnalysisAt) {
+      const target = new Date(pr.autoAnalysisAt).getTime();
+
+      function tick() {
+        const remaining = Math.max(0, Math.ceil((target - Date.now()) / 1000));
+        setCountdown(remaining);
+
+        if (remaining <= 0) {
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
+          // Auto-analysis should fire on backend — start polling
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = setInterval(() => {
+            fetchData();
+          }, 2000);
+        }
+      }
+
+      tick(); // immediate first tick
+      countdownRef.current = setInterval(tick, 1000);
+    } else {
+      setCountdown(null);
+    }
+
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    };
+  }, [pr?.status, pr?.autoAnalysisAt, fetchData]);
 
   // Start polling when analyzing
   function startPolling() {
@@ -77,16 +121,28 @@ export default function PRDetails() {
   // Stop polling when analysis is done
   const prStatus = pr?.status;
   useEffect(() => {
-    if (prStatus && prStatus !== "analyzing" && pollRef.current) {
+    if (
+      prStatus &&
+      prStatus !== "analyzing" &&
+      prStatus !== "received" &&
+      pollRef.current
+    ) {
       clearInterval(pollRef.current);
       pollRef.current = null;
       setAnalyzing(false);
     }
   }, [prStatus]);
 
-  // Handle analyze button click
+  // Handle analyze button click (manual — skip timer)
   async function handleAnalyze() {
     setAnalyzing(true);
+    // Stop countdown immediately
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setCountdown(null);
+
     try {
       await analyzePR(id);
       startPolling();
@@ -198,7 +254,9 @@ export default function PRDetails() {
           px="5"
           _hover={{ opacity: 0.9 }}
           onClick={handleAnalyze}
-          disabled={analyzing || pr.status === "analyzing"}
+          disabled={
+            analyzing || pr.status === "analyzing" || pr.status === "completed"
+          }
         >
           <Icon mr="1.5" boxSize="3.5">
             <LuPlay />
@@ -206,6 +264,136 @@ export default function PRDetails() {
           {analyzing ? "Analyzing..." : "Run Analysis"}
         </Button>
       </Flex>
+
+      {/* Auto-analysis countdown banner */}
+      {pr.status === "received" && countdown !== null && countdown > 0 && (
+        <Box mb="4">
+          <GlassCard>
+            <Flex
+              align="center"
+              justify="space-between"
+              gap="4"
+              flexWrap="wrap"
+            >
+              <Flex align="center" gap="3">
+                <Flex
+                  w="40px"
+                  h="40px"
+                  borderRadius="xl"
+                  bg="rgba(59,130,246,0.1)"
+                  border="1px solid rgba(59,130,246,0.2)"
+                  align="center"
+                  justify="center"
+                  flexShrink="0"
+                >
+                  <Icon color="#3b82f6" boxSize="5">
+                    <LuTimer />
+                  </Icon>
+                </Flex>
+                <Box>
+                  <Text fontSize="14px" fontWeight="700" color={t.textPrimary}>
+                    Auto-Analysis Scheduled
+                  </Text>
+                  <Text fontSize="12px" color={t.textMuted}>
+                    Analysis will start automatically in{" "}
+                    <Text
+                      as="span"
+                      fontWeight="800"
+                      fontFamily="mono"
+                      color="#3b82f6"
+                    >
+                      {countdown}s
+                    </Text>
+                    . Click "Run Analysis" to start now.
+                  </Text>
+                </Box>
+              </Flex>
+
+              {/* Circular countdown */}
+              <Flex align="center" gap="3">
+                <Box position="relative" w="48px" h="48px">
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 48 48"
+                    style={{ transform: "rotate(-90deg)" }}
+                  >
+                    {/* Background circle */}
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      fill="none"
+                      stroke={t.border}
+                      strokeWidth="3"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="24"
+                      cy="24"
+                      r="20"
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 20}`}
+                      strokeDashoffset={`${2 * Math.PI * 20 * (1 - countdown / 60)}`}
+                      style={{ transition: "stroke-dashoffset 1s linear" }}
+                    />
+                  </svg>
+                  <Flex
+                    position="absolute"
+                    inset="0"
+                    align="center"
+                    justify="center"
+                  >
+                    <Text
+                      fontSize="14px"
+                      fontWeight="800"
+                      fontFamily="mono"
+                      color="#3b82f6"
+                    >
+                      {countdown}
+                    </Text>
+                  </Flex>
+                </Box>
+                <Button
+                  size="sm"
+                  bg="linear-gradient(135deg, #3b82f6, #8b5cf6)"
+                  color="white"
+                  borderRadius="lg"
+                  fontSize="12px"
+                  fontWeight="600"
+                  px="4"
+                  _hover={{ opacity: 0.9, transform: "scale(1.02)" }}
+                  onClick={handleAnalyze}
+                  disabled={analyzing}
+                  transition="all 0.15s"
+                >
+                  <Icon mr="1.5" boxSize="3.5">
+                    <LuPlay />
+                  </Icon>
+                  Run Now
+                </Button>
+              </Flex>
+            </Flex>
+          </GlassCard>
+        </Box>
+      )}
+
+      {/* Waiting for auto-analysis to start (countdown finished) */}
+      {pr.status === "received" && countdown !== null && countdown <= 0 && (
+        <Box mb="4">
+          <GlassCard>
+            <Flex align="center" gap="3">
+              <Spinner size="sm" color="#3b82f6" />
+              <Text fontSize="13px" color={t.textMuted}>
+                Auto-analysis starting...
+              </Text>
+            </Flex>
+          </GlassCard>
+        </Box>
+      )}
 
       {/* PR metadata cards */}
       <Grid

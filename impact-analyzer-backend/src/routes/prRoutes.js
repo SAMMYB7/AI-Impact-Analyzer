@@ -4,10 +4,18 @@ const {
   getAllPRs,
   getPRById,
   analyzePR,
+  getRecentPRs,
+  getPRStatus,
 } = require("../controllers/prController");
 
 // GET /api/pr — list all PRs
 router.get("/", getAllPRs);
+
+// GET /api/pr/recent — last 20 PRs
+router.get("/recent", getRecentPRs);
+
+// GET /api/pr/:id/status — PR + pipeline + logs (for polling)
+router.get("/:id/status", getPRStatus);
 
 // GET /api/pr/:id — fetch a PR by prId
 router.get("/:id", getPRById);

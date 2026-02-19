@@ -1,56 +1,46 @@
-const { sagemakerClient } = require("../config/aws");
-const { InvokeEndpointCommand } = require("@aws-sdk/client-sagemaker-runtime");
+const {
+  SageMakerRuntimeClient,
+  InvokeEndpointCommand,
+} = require("@aws-sdk/client-sagemaker-runtime");
 
-const ENDPOINT = process.env.SAGEMAKER_ENDPOINT;
+const client = new SageMakerRuntimeClient({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
-// ── Mock fallback ────────────────────────────────────────────
-// Used when SAGEMAKER_ENDPOINT is not set or is "dummy"
-function mockPredict(payload) {
-  const fileCount = payload.filesChanged ? payload.filesChanged.length : 1;
-  const base = Math.min(fileCount * 15, 70);
-  const random = Math.floor(Math.random() * 30);
-
-  return {
-    riskScore: Math.min(base + random, 100),
-    confidence: 60 + Math.floor(Math.random() * 30), // 60-89%
-    provider: "mock",
-  };
-}
-
-// ── Main prediction function ─────────────────────────────────
-// Calls SageMaker if endpoint is configured, otherwise returns mock
-async function predictImpact(payload) {
-  // If no real endpoint, use mock
-  if (!ENDPOINT || ENDPOINT === "dummy") {
-    console.log("🧪 Using mock prediction (no SageMaker endpoint)");
-    return mockPredict(payload);
-  }
-
-  // Real SageMaker call
+async function predictRisk(featuresArray) {
   try {
-    console.log(`🤖 Calling SageMaker endpoint: ${ENDPOINT}`);
+    console.log(
+      "🤖 Calling SageMaker endpoint:",
+      process.env.SAGEMAKER_ENDPOINT,
+    );
+
+    // Convert features to CSV string
+    const csvPayload = featuresArray.join(",");
+
+    console.log("📊 CSV payload:", csvPayload);
 
     const command = new InvokeEndpointCommand({
-      EndpointName: ENDPOINT,
-      ContentType: "application/json",
-      Body: JSON.stringify(payload),
+      EndpointName: process.env.SAGEMAKER_ENDPOINT,
+      ContentType: "text/csv",
+      Body: csvPayload,
     });
 
-    const response = await sagemakerClient.send(command);
+    const response = await client.send(command);
+    const result = Buffer.from(response.Body).toString();
 
-    // Parse response body
-    const result = JSON.parse(Buffer.from(response.Body).toString());
+    console.log("🧠 SageMaker raw response:", result);
 
-    return {
-      riskScore: result.riskScore || 50,
-      confidence: result.confidence || 70,
-      provider: "sagemaker",
-    };
-  } catch (error) {
-    // If SageMaker fails, fall back to mock so analysis doesn't break
-    console.error("⚠️ SageMaker call failed, falling back to mock:", error.message);
-    return mockPredict(payload);
+    // parse numeric prediction
+    const risk = parseFloat(result);
+    return risk || Math.random();
+  } catch (err) {
+    console.log("⚠️ SageMaker call failed, falling back to mock:", err.message);
+    return Math.random();
   }
 }
 
-module.exports = { predictImpact };
+module.exports = { predictRisk };

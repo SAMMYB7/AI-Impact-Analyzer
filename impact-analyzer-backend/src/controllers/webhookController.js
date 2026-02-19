@@ -3,6 +3,10 @@ const pipelineService = require("../services/pipelineService");
 const logService = require("../services/logService");
 const analyzerService = require("../services/analyzerService");
 const { getChangedFiles, GITHUB_OWNER } = require("../services/githubService");
+const {
+  scheduleAutoAnalysis,
+  AUTO_ANALYSIS_DELAY,
+} = require("../services/timerService");
 
 // ═══════════════════════════════════════════════════════════════
 // POST /api/webhook/github — Real GitHub webhook handler
@@ -44,18 +48,25 @@ async function handleGithubWebhook(req, res) {
     // ── Extract PR details from GitHub payload ──────────────
     const prNumber = pull_request.number;
     const prId = "GH-" + pull_request.id;
-    const repo = repository?.full_name || repository?.name || "unknown/repo";
+    const owner = repository?.owner?.login || GITHUB_OWNER;
+    const repoName = repository?.name || "unknown";
+    const repo = repository?.full_name || `${owner}/${repoName}`;
+    const htmlUrl = pull_request.html_url || "";
     const author = pull_request.user.login;
     const branch = pull_request.head.ref;
     const commitMessage = pull_request.title || "";
 
+    // ── Only process repos owned by SAMMYB7 ─────────────────
+    if (owner.toLowerCase() !== GITHUB_OWNER.toLowerCase()) {
+      console.log(`ℹ️ Ignoring PR from foreign owner: ${owner}`);
+      return res.status(200).json({ message: `Ignored owner: ${owner}` });
+    }
+
     console.log(
-      `🔔 GitHub webhook: PR #${prNumber} ${action} by ${author} on ${branch}`,
+      `🔔 GitHub webhook: PR #${prNumber} ${action} by ${author} on ${repoName}/${branch}`,
     );
 
     // ── Fetch changed files from GitHub API ─────────────────
-    const owner = GITHUB_OWNER;
-    const repoName = repository?.name || repo.split("/").pop();
     const filesChanged = await getChangedFiles(owner, repoName, prNumber);
 
     if (filesChanged.length === 0) {
@@ -81,6 +92,10 @@ async function handleGithubWebhook(req, res) {
       pr.status = "received";
       pr.branch = branch;
       pr.commitMessage = commitMessage;
+      pr.repoOwner = owner;
+      pr.repoName = repoName;
+      pr.prNumber = prNumber;
+      pr.htmlUrl = htmlUrl;
       await pr.save();
 
       await logService.addLog(
@@ -95,6 +110,10 @@ async function handleGithubWebhook(req, res) {
       pr = await PullRequest.create({
         prId,
         repo,
+        repoOwner: owner,
+        repoName,
+        prNumber,
+        htmlUrl,
         author,
         branch,
         commitMessage,
@@ -111,27 +130,28 @@ async function handleGithubWebhook(req, res) {
       await logService.addLog(
         prId,
         "fetch_changes",
-        `Real GitHub PR #${prNumber} received from ${author} on ${branch} — ${filesChanged.length} files`,
+        `GitHub PR #${prNumber} received from ${repoName} by ${author} on ${branch} — ${filesChanged.length} files`,
       );
 
       console.log(`📥 GitHub PR ingested: ${prId}`);
     }
 
-    // ── Auto-analyze if enabled ─────────────────────────────
-    if (process.env.AUTO_ANALYZE === "true") {
-      console.log(`⚡ Auto-analyze enabled — running analysis for ${prId}`);
-      analyzerService.analyzePullRequest(prId).catch((err) => {
-        console.error(`❌ Auto-analyze failed for ${prId}:`, err.message);
-      });
-    }
+    // ── Set auto-analysis timestamp ─────────────────────────
+    pr.autoAnalysisAt = new Date(Date.now() + AUTO_ANALYSIS_DELAY);
+    await pr.save();
 
+    // ── Send response immediately ────────────────────────────
     res.status(201).json({
       message: "GitHub PR received successfully",
       prId: pr.prId,
       prNumber,
       filesChanged: filesChanged.length,
       status: pr.status,
+      autoAnalysisAt: pr.autoAnalysisAt,
     });
+
+    // ── Schedule auto-analysis after 60s ─────────────────────
+    scheduleAutoAnalysis(prId, () => analyzerService.analyzePullRequest(prId));
   } catch (error) {
     console.error("❌ GitHub webhook error:", error.message);
     res.status(500).json({ error: error.message });
@@ -205,19 +225,20 @@ async function handleSimulateWebhook(req, res) {
 
     console.log(`📥 Simulated PR ingested: ${prId}`);
 
-    // ── Auto-analyze if enabled ─────────────────────────────
-    if (process.env.AUTO_ANALYZE === "true") {
-      console.log(`⚡ Auto-analyze enabled — running analysis for ${prId}`);
-      analyzerService.analyzePullRequest(prId).catch((err) => {
-        console.error(`❌ Auto-analyze failed for ${prId}:`, err.message);
-      });
-    }
+    // ── Set auto-analysis timestamp ─────────────────────────
+    pr.autoAnalysisAt = new Date(Date.now() + AUTO_ANALYSIS_DELAY);
+    await pr.save();
 
+    // ── Send response immediately ────────────────────────────
     res.status(201).json({
       message: "PR received successfully",
       prId: pr.prId,
       status: pr.status,
+      autoAnalysisAt: pr.autoAnalysisAt,
     });
+
+    // ── Schedule auto-analysis after 60s ─────────────────────
+    scheduleAutoAnalysis(prId, () => analyzerService.analyzePullRequest(prId));
   } catch (error) {
     console.error("❌ Simulate webhook error:", error.message);
     res.status(500).json({ error: error.message });

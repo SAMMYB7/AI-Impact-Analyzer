@@ -28,6 +28,12 @@ export async function getPR(prId) {
   return res.data;
 }
 
+// Fetch PR + pipeline + logs in one shot (GET /api/pr/:id/status) — for polling
+export async function getPRStatus(prId) {
+  const res = await API.get(`/api/pr/${prId}/status`);
+  return res.data;
+}
+
 // Fetch all PRs (GET /api/pr)
 export async function getAllPRs() {
   const res = await API.get("/api/pr");

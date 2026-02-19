@@ -1,7 +1,7 @@
 const { s3Client } = require("../config/aws");
 const { PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 
-const BUCKET = process.env.S3_BUCKET;
+const BUCKET = process.env.AWS_S3_BUCKET;
 
 // ── Upload analysis report to S3 ────────────────────────────
 // If no bucket configured, just logs and returns a mock URL
