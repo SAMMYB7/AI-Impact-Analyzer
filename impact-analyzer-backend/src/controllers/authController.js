@@ -151,8 +151,8 @@ exports.verifyOTP = async (req, res) => {
             authProvider: "local",
         });
 
-        // Save without triggering pre-save hook (password already hashed)
-        await user.save({ validateBeforeSave: false });
+        // Save the verified user. The pre-save hook safely detects it's already hashed.
+        await user.save();
 
         // Clean up OTP
         await OTP.deleteMany({ email });

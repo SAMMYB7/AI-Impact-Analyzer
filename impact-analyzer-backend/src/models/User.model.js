@@ -64,11 +64,14 @@ const userSchema = new mongoose.Schema(
 );
 
 // ── Hash password before saving ──────────────────────────────
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password") || !this.password) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password") || !this.password) return;
+
+  // Prevent double-hashing (bcrypt hashes start with $2)
+  if (this.password.startsWith("$2a$") || this.password.startsWith("$2b$") || this.password.startsWith("$2y$")) return;
+
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // ── Compare password ─────────────────────────────────────────
