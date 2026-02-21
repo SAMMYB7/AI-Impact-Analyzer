@@ -46,7 +46,7 @@ import GlassCard from "../components/shared/GlassCard";
 import StatusBadge from "../components/shared/StatusBadge";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { usePR } from "../context/usePRHook";
-import { getHealth } from "../api/api";
+
 
 // ── Custom Recharts tooltip ─────────────────────────────────
 function GlassTooltip({ active, payload, label, t }) {
@@ -86,21 +86,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { prs, refreshPRs, loading } = usePR();
   const [modalOpen, setModalOpen] = useState(false);
-  const [health, setHealth] = useState(null);
+
 
   useEffect(() => {
-    let ignore = false;
     refreshPRs();
-    getHealth()
-      .then((data) => {
-        if (!ignore) setHealth(data);
-      })
-      .catch(() => {
-        if (!ignore) setHealth(null);
-      });
-    return () => {
-      ignore = true;
-    };
   }, [refreshPRs]);
 
   async function handlePRCreated() {
@@ -178,12 +167,7 @@ export default function Dashboard() {
             _hover={{ bg: t.bgHover, color: t.textPrimary }}
             borderRadius="lg"
             fontSize="12px"
-            onClick={() => {
-              refreshPRs();
-              getHealth()
-                .then(setHealth)
-                .catch(() => setHealth(null));
-            }}
+            onClick={() => refreshPRs()}
             disabled={loading}
           >
             <Icon
@@ -214,39 +198,6 @@ export default function Dashboard() {
         </Flex>
       </Flex>
 
-      {/* Health indicator */}
-      {health && (
-        <GlassCard>
-          <Flex align="center" gap="3" py="1">
-            <Flex
-              w="8px"
-              h="8px"
-              borderRadius="full"
-              bg={health.status === "ok" ? "#10b981" : "#f59e0b"}
-              boxShadow={
-                health.status === "ok"
-                  ? "0 0 8px rgba(16,185,129,0.5)"
-                  : "0 0 8px rgba(245,158,11,0.5)"
-              }
-            />
-            <Text fontSize="12px" fontWeight="500" color={t.textSecondary}>
-              Backend{" "}
-              <Text as="span" color={t.textMuted} fontFamily="mono">
-                {health.status === "ok" ? "Connected" : "Degraded"}
-              </Text>
-            </Text>
-            <Text fontSize="11px" color={t.textFaint} fontFamily="mono">
-              •
-            </Text>
-            <Icon color={t.textFaint} boxSize="3">
-              <LuActivity />
-            </Icon>
-            <Text fontSize="11px" color={t.textFaint} fontFamily="mono">
-              {health.uptime ? `Uptime: ${Math.floor(health.uptime)}s` : "Live"}
-            </Text>
-          </Flex>
-        </GlassCard>
-      )}
 
       {/* Stats */}
       <Box mt="4">

@@ -286,6 +286,208 @@ exports.getMe = async (req, res) => {
 };
 
 // ══════════════════════════════════════════════════════════════
+// PUT /api/auth/profile — Update profile (name, avatar)
+// ══════════════════════════════════════════════════════════════
+exports.updateProfile = async (req, res) => {
+    try {
+        const { name, avatar } = req.body;
+        const updates = {};
+
+        if (name && name.trim()) {
+            if (name.trim().length > 100) {
+                return res.status(400).json({ error: "Name must be under 100 characters" });
+            }
+            updates.name = name.trim();
+        }
+        if (avatar !== undefined) updates.avatar = avatar;
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: "No valid fields to update" });
+        }
+
+        await User.updateOne({ _id: req.user.id }, updates);
+        const user = await User.findById(req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role,
+                authProvider: user.authProvider,
+                githubUsername: user.githubUsername,
+                lastLogin: user.lastLogin,
+                createdAt: user.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error("Update profile error:", error);
+        res.status(500).json({ error: "Failed to update profile" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// PUT /api/auth/password — Change password
+// ══════════════════════════════════════════════════════════════
+exports.updatePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ error: "New password must be at least 6 characters" });
+        }
+
+        const user = await User.findById(req.user.id).select("+password");
+
+        // If user has a password (local auth), verify current password
+        if (user.password) {
+            if (!currentPassword) {
+                return res.status(400).json({ error: "Current password is required" });
+            }
+            const isMatch = await user.comparePassword(currentPassword);
+            if (!isMatch) {
+                return res.status(401).json({ error: "Current password is incorrect" });
+            }
+        }
+
+        // Set new password (the pre-save hook will hash it)
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Password updated successfully",
+        });
+    } catch (error) {
+        console.error("Update password error:", error);
+        res.status(500).json({ error: "Failed to update password" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/auth/connect-github — Link GitHub to existing account
+// ══════════════════════════════════════════════════════════════
+exports.connectGithub = async (req, res) => {
+    try {
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({ error: "Authorization code is required" });
+        }
+
+        // Exchange code for access token
+        const tokenResponse = await axios.post(
+            "https://github.com/login/oauth/access_token",
+            {
+                client_id: process.env.GITHUB_CLIENT_ID,
+                client_secret: process.env.GITHUB_CLIENT_SECRET,
+                code,
+            },
+            { headers: { Accept: "application/json" } }
+        );
+
+        const { access_token, error: tokenError } = tokenResponse.data;
+        if (tokenError || !access_token) {
+            return res.status(400).json({ error: "Failed to authenticate with GitHub" });
+        }
+
+        // Fetch GitHub profile
+        const userResponse = await axios.get("https://api.github.com/user", {
+            headers: { Authorization: `token ${access_token}` },
+        });
+        const githubUser = userResponse.data;
+
+        // Check if this GitHub account is already linked to another user
+        const existingGithubUser = await User.findOne({ githubId: String(githubUser.id) });
+        if (existingGithubUser && String(existingGithubUser._id) !== String(req.user.id)) {
+            return res.status(400).json({
+                error: "This GitHub account is already linked to another user",
+            });
+        }
+
+        // Link GitHub to current user
+        await User.updateOne(
+            { _id: req.user.id },
+            {
+                githubId: String(githubUser.id),
+                githubUsername: githubUser.login,
+                githubAccessToken: access_token,
+                avatar: githubUser.avatar_url || req.user.avatar,
+            }
+        );
+
+        const user = await User.findById(req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: "GitHub account connected successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar,
+                role: user.role,
+                authProvider: user.authProvider,
+                githubUsername: user.githubUsername,
+                lastLogin: user.lastLogin,
+                createdAt: user.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error("Connect GitHub error:", error?.response?.data || error.message);
+        res.status(500).json({ error: "Failed to connect GitHub account" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// DELETE /api/auth/disconnect-github — Unlink GitHub from account
+// ══════════════════════════════════════════════════════════════
+exports.disconnectGithub = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select("+password");
+
+        // Prevent disconnect if user has no password (GitHub-only account)
+        if (user.authProvider === "github" && !user.password) {
+            return res.status(400).json({
+                error: "Please set a password before disconnecting GitHub (you'd be locked out otherwise)",
+            });
+        }
+
+        await User.updateOne(
+            { _id: req.user.id },
+            {
+                $unset: { githubId: 1, githubAccessToken: 1 },
+                githubUsername: "",
+            }
+        );
+
+        const updatedUser = await User.findById(req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: "GitHub account disconnected",
+            user: {
+                id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                avatar: updatedUser.avatar,
+                role: updatedUser.role,
+                authProvider: updatedUser.authProvider,
+                githubUsername: updatedUser.githubUsername,
+                lastLogin: updatedUser.lastLogin,
+                createdAt: updatedUser.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error("Disconnect GitHub error:", error);
+        res.status(500).json({ error: "Failed to disconnect GitHub" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
 // POST /api/auth/github — GitHub OAuth: exchange code for token
 // ══════════════════════════════════════════════════════════════
 exports.githubAuth = async (req, res) => {

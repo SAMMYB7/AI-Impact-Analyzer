@@ -13,7 +13,7 @@ import { toaster } from "../components/ui/toaster";
 export default function GithubCallbackPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { loginWithGithub } = useAuth();
+    const { loginWithGithub, connectGithub, isAuthenticated } = useAuth();
     const t = useThemeColors();
     const [status, setStatus] = useState("loading"); // loading | success | error
     const [errorMsg, setErrorMsg] = useState("");
@@ -27,6 +27,7 @@ export default function GithubCallbackPage() {
 
             const code = searchParams.get("code");
             const error = searchParams.get("error");
+            const isConnect = searchParams.get("connect") === "true";
 
             if (error) {
                 setStatus("error");
@@ -35,26 +36,39 @@ export default function GithubCallbackPage() {
                         ? "You denied access to your GitHub account"
                         : "GitHub authentication was cancelled"
                 );
-                setTimeout(() => navigate("/login"), 3000);
+                setTimeout(() => navigate(isConnect ? "/settings" : "/login"), 3000);
                 return;
             }
 
             if (!code) {
                 setStatus("error");
                 setErrorMsg("No authorization code received from GitHub");
-                setTimeout(() => navigate("/login"), 3000);
+                setTimeout(() => navigate(isConnect ? "/settings" : "/login"), 3000);
                 return;
             }
 
             try {
-                await loginWithGithub(code);
-                setStatus("success");
-                toaster.create({
-                    title: "Welcome!",
-                    description: "Successfully signed in with GitHub",
-                    type: "success",
-                });
-                setTimeout(() => navigate("/dashboard"), 1500);
+                if (isConnect && isAuthenticated) {
+                    // Linking GitHub to existing account from Settings
+                    await connectGithub(code);
+                    setStatus("success");
+                    toaster.create({
+                        title: "GitHub Connected!",
+                        description: "Your GitHub account has been linked",
+                        type: "success",
+                    });
+                    setTimeout(() => navigate("/settings"), 1500);
+                } else {
+                    // Normal login/register via GitHub
+                    await loginWithGithub(code);
+                    setStatus("success");
+                    toaster.create({
+                        title: "Welcome!",
+                        description: "Successfully signed in with GitHub",
+                        type: "success",
+                    });
+                    setTimeout(() => navigate("/dashboard"), 1500);
+                }
             } catch (err) {
                 setStatus("error");
                 setErrorMsg(
@@ -66,12 +80,12 @@ export default function GithubCallbackPage() {
                         err?.response?.data?.error || "Could not sign in with GitHub",
                     type: "error",
                 });
-                setTimeout(() => navigate("/login"), 3000);
+                setTimeout(() => navigate(isConnect ? "/settings" : "/login"), 3000);
             }
         }
 
         handleCallback();
-    }, [searchParams, loginWithGithub, navigate]);
+    }, [searchParams, loginWithGithub, connectGithub, isAuthenticated, navigate]);
 
     return (
         <Flex
@@ -154,10 +168,10 @@ export default function GithubCallbackPage() {
                                         : "linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(139, 92, 246, 0.1))"
                             }
                             border={`1px solid ${status === "success"
-                                    ? "rgba(16, 185, 129, 0.2)"
-                                    : status === "error"
-                                        ? "rgba(239, 68, 68, 0.2)"
-                                        : t.border
+                                ? "rgba(16, 185, 129, 0.2)"
+                                : status === "error"
+                                    ? "rgba(239, 68, 68, 0.2)"
+                                    : t.border
                                 }`}
                             align="center"
                             justify="center"

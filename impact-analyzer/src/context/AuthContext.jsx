@@ -89,6 +89,33 @@ export function AuthProvider({ children }) {
         setUser(null);
     }, []);
 
+    // ── Update Profile ───────────────────────────────────────
+    const updateProfile = useCallback(async (data) => {
+        const res = await API.put("/api/auth/profile", data);
+        setUser(res.data.user);
+        return res.data;
+    }, []);
+
+    // ── Update Password ──────────────────────────────────────
+    const updatePassword = useCallback(async (currentPassword, newPassword) => {
+        const res = await API.put("/api/auth/password", { currentPassword, newPassword });
+        return res.data;
+    }, []);
+
+    // ── Connect GitHub ───────────────────────────────────────
+    const connectGithub = useCallback(async (code) => {
+        const res = await API.post("/api/auth/connect-github", { code });
+        setUser(res.data.user);
+        return res.data;
+    }, []);
+
+    // ── Disconnect GitHub ────────────────────────────────────
+    const disconnectGithub = useCallback(async () => {
+        const res = await API.delete("/api/auth/disconnect-github");
+        setUser(res.data.user);
+        return res.data;
+    }, []);
+
     const value = {
         user,
         token,
@@ -100,6 +127,10 @@ export function AuthProvider({ children }) {
         resendOTP,
         loginWithGithub,
         logout,
+        updateProfile,
+        updatePassword,
+        connectGithub,
+        disconnectGithub,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
