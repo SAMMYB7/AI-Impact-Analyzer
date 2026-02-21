@@ -2,7 +2,8 @@ const User = require("../models/User.model");
 const OTP = require("../models/OTP.model");
 const axios = require("axios");
 const bcrypt = require("bcryptjs");
-const { generateOTP, sendOTPEmail } = require("../utils/emailService");
+const crypto = require("crypto");
+const { generateOTP, sendOTPEmail, sendPasswordResetEmail } = require("../utils/emailService");
 
 // ── Helper: Send token response ──────────────────────────────
 function sendTokenResponse(user, statusCode, res) {
@@ -261,7 +262,7 @@ exports.login = async (req, res) => {
 // ══════════════════════════════════════════════════════════════
 exports.getMe = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
+        const user = await User.findById(req.user.id).select("+password");
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -277,6 +278,7 @@ exports.getMe = async (req, res) => {
                 githubUsername: user.githubUsername,
                 lastLogin: user.lastLogin,
                 createdAt: user.createdAt,
+                hasPassword: !!user.password,
             },
         });
     } catch (error) {
@@ -403,8 +405,18 @@ exports.connectGithub = async (req, res) => {
         // Check if this GitHub account is already linked to another user
         const existingGithubUser = await User.findOne({ githubId: String(githubUser.id) });
         if (existingGithubUser && String(existingGithubUser._id) !== String(req.user.id)) {
-            return res.status(400).json({
-                error: "This GitHub account is already linked to another user",
+            // Mask the email for privacy (show first 2 chars + domain)
+            const email = existingGithubUser.email || "";
+            const [localPart, domain] = email.split("@");
+            const maskedEmail = localPart
+                ? `${localPart.slice(0, 2)}${"*".repeat(Math.max(localPart.length - 2, 3))}@${domain}`
+                : "another account";
+
+            return res.status(409).json({
+                error: `The GitHub account @${githubUser.login} is already linked to ${maskedEmail}. Each GitHub account can only be connected to one Impact Analyzer account. Please disconnect it from the other account first, or use a different GitHub account.`,
+                code: "GITHUB_ALREADY_LINKED",
+                githubUsername: githubUser.login,
+                linkedTo: maskedEmail,
             });
         }
 
@@ -577,5 +589,89 @@ exports.githubAuth = async (req, res) => {
     } catch (error) {
         console.error("GitHub Auth error:", error?.response?.data || error.message);
         res.status(500).json({ error: "GitHub authentication failed" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/auth/forgot-password — Request password reset
+// ══════════════════════════════════════════════════════════════
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: "Please provide an email address" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: "There is no user with that email" });
+        }
+
+        // Check if user is github only
+        if (user.authProvider === "github" && !user.password) {
+            return res.status(400).json({ error: "This is a GitHub-only account, cannot reset password" });
+        }
+
+        // Get reset token
+        const resetToken = user.getResetPasswordToken();
+
+        await user.save({ validateBeforeSave: false });
+
+        // Create reset url
+        // In production, this should point to your frontend domain
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+        try {
+            await sendPasswordResetEmail(user.email, resetUrl);
+            res.status(200).json({ success: true, message: "Email sent" });
+        } catch (error) {
+            console.error("Email error:", error);
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpire = undefined;
+            await user.save({ validateBeforeSave: false });
+            return res.status(500).json({ error: "Email could not be sent" });
+        }
+    } catch (error) {
+        console.error("Forgot password error:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// PUT /api/auth/reset-password/:token — Reset the password
+// ══════════════════════════════════════════════════════════════
+exports.resetPassword = async (req, res) => {
+    try {
+        // Get hashed token
+        const resetPasswordToken = crypto
+            .createHash("sha256")
+            .update(req.params.token)
+            .digest("hex");
+
+        const user = await User.findOne({
+            resetPasswordToken,
+            resetPasswordExpire: { $gt: Date.now() },
+        });
+
+        if (!user) {
+            return res.status(400).json({ error: "Invalid or expired token" });
+        }
+
+        const { password } = req.body;
+        if (!password || password.length < 6) {
+            return res.status(400).json({ error: "Password must be at least 6 characters" });
+        }
+
+        // Set new password
+        user.password = password;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        await user.save();
+
+        sendTokenResponse(user, 200, res);
+    } catch (error) {
+        console.error("Reset password error:", error);
+        res.status(500).json({ error: "Server error" });
     }
 };

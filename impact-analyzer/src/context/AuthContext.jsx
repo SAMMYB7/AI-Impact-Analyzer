@@ -116,6 +116,18 @@ export function AuthProvider({ children }) {
         return res.data;
     }, []);
 
+    // ── Forgot Password ──────────────────────────────────────
+    const forgotPassword = useCallback(async (email) => {
+        const res = await API.post("/api/auth/forgot-password", { email });
+        return res.data;
+    }, []);
+
+    // ── Reset Password ───────────────────────────────────────
+    const resetPassword = useCallback(async (token, password) => {
+        const res = await API.put(`/api/auth/reset-password/${token}`, { password });
+        return res.data;
+    }, []);
+
     const value = {
         user,
         token,
@@ -131,6 +143,8 @@ export function AuthProvider({ children }) {
         updatePassword,
         connectGithub,
         disconnectGithub,
+        forgotPassword,
+        resetPassword,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

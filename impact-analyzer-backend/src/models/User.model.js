@@ -57,6 +57,9 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
   },
   {
     timestamps: true,
@@ -94,8 +97,28 @@ userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
   delete obj.githubAccessToken;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpire;
   delete obj.__v;
   return obj;
+};
+
+// ── Generate Password Reset Token ────────────────────────────
+const crypto = require("crypto");
+userSchema.methods.getResetPasswordToken = function () {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString("hex");
+
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  // Set expire (10 minutes)
+  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+
+  return resetToken;
 };
 
 module.exports = mongoose.model("User", userSchema);

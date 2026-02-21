@@ -91,9 +91,6 @@ body {
   background: var(--bg-main);
   overflow: hidden;
   height: 100vh;
-  transition:
-    background-color 0.3s ease,
-    color 0.3s ease;
 }
 
 #root {
@@ -127,10 +124,12 @@ body {
 /* ── Animations — Smooth & Professional ────────────────────── */
 
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.4;
   }
@@ -140,6 +139,7 @@ body {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -149,6 +149,7 @@ body {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -159,6 +160,7 @@ body {
     opacity: 0;
     transform: translateY(16px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -170,6 +172,7 @@ body {
     opacity: 0;
     transform: translateX(-16px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -181,6 +184,7 @@ body {
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -192,6 +196,7 @@ body {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -203,6 +208,7 @@ body {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -210,20 +216,24 @@ body {
 }
 
 @keyframes glow {
+
   0%,
   100% {
     box-shadow: 0 0 4px rgba(20, 184, 166, 0.15);
   }
+
   50% {
     box-shadow: 0 0 16px rgba(20, 184, 166, 0.3);
   }
 }
 
 @keyframes subtleGlow {
+
   0%,
   100% {
     opacity: 0.6;
   }
+
   50% {
     opacity: 1;
   }
@@ -233,6 +243,7 @@ body {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -242,19 +253,23 @@ body {
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
 }
 
 @keyframes borderPulse {
+
   0%,
   100% {
     border-color: rgba(20, 184, 166, 0.15);
   }
+
   50% {
     border-color: rgba(20, 184, 166, 0.4);
   }
@@ -265,6 +280,7 @@ body {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -282,6 +298,7 @@ body {
     transform: scale(0.8);
     opacity: 1;
   }
+
   100% {
     transform: scale(2.4);
     opacity: 0;
@@ -289,10 +306,12 @@ body {
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-4px);
   }
@@ -300,12 +319,10 @@ body {
 
 /* Shimmer skeleton effect */
 [data-shimmer] {
-  background: linear-gradient(
-    90deg,
-    var(--shimmer-1) 25%,
-    var(--shimmer-2) 50%,
-    var(--shimmer-1) 75%
-  );
+  background: linear-gradient(90deg,
+      var(--shimmer-1) 25%,
+      var(--shimmer-2) 50%,
+      var(--shimmer-1) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -358,6 +375,32 @@ a {
 .card-interactive {
   transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 .card-interactive:hover {
   transform: translateY(-2px);
+}
+
+/* ── View Transition — Telegram-style circular wave ──────── */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/* When switching to light mode, reverse the layering */
+.dark::view-transition-old(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-new(root) {
+  z-index: 1;
 }

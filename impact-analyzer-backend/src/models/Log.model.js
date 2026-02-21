@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const logSchema = new mongoose.Schema({
   prId: { type: String, required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
   stage: { type: String, required: true },
   level: {
     type: String,

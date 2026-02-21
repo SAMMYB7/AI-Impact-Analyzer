@@ -11,14 +11,25 @@ const STAGE_NAMES = [
 ];
 
 // Create a new pipeline run with all stages set to "pending"
-async function createPipeline(prId) {
+async function createPipeline(prId, userId = null) {
   const stages = STAGE_NAMES.map((name) => ({
     name,
     status: "pending",
   }));
 
+  let finalUserId = userId;
+  if (!finalUserId) {
+    const mongoose = require("mongoose");
+    const PullRequest = mongoose.model("PullRequest");
+    if (PullRequest) {
+      const pr = await PullRequest.findOne({ prId }).select("userId");
+      if (pr?.userId) finalUserId = pr.userId;
+    }
+  }
+
   const pipeline = await PipelineRun.create({
     prId,
+    userId: finalUserId,
     stages,
     status: "running",
     currentStage: STAGE_NAMES[0],

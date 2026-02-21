@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const pullRequestSchema = new mongoose.Schema(
   {
     prId: { type: String, required: true, unique: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     repo: { type: String, required: true },
     repoOwner: { type: String },
     repoName: { type: String },

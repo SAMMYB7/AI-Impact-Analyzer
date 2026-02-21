@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box, Flex, Text, Icon, VStack, Spinner } from "@chakra-ui/react";
-import { LuGithub, LuCircleCheck, LuCircleX, LuZap } from "react-icons/lu";
+import { LuGithub, LuCircleCheck, LuCircleX, LuZap, LuTriangleAlert } from "react-icons/lu";
 import { useAuth } from "../context/AuthContext";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { toaster } from "../components/ui/toaster";
@@ -15,8 +15,9 @@ export default function GithubCallbackPage() {
     const navigate = useNavigate();
     const { loginWithGithub, connectGithub, isAuthenticated } = useAuth();
     const t = useThemeColors();
-    const [status, setStatus] = useState("loading"); // loading | success | error
+    const [status, setStatus] = useState("loading"); // loading | success | error | already_linked
     const [errorMsg, setErrorMsg] = useState("");
+    const [linkedInfo, setLinkedInfo] = useState(null); // { githubUsername, linkedTo }
     const processedRef = useRef(false);
 
     useEffect(() => {
@@ -70,17 +71,27 @@ export default function GithubCallbackPage() {
                     setTimeout(() => navigate("/dashboard"), 1500);
                 }
             } catch (err) {
-                setStatus("error");
-                setErrorMsg(
-                    err?.response?.data?.error || "GitHub authentication failed"
-                );
-                toaster.create({
-                    title: "Authentication failed",
-                    description:
-                        err?.response?.data?.error || "Could not sign in with GitHub",
-                    type: "error",
-                });
-                setTimeout(() => navigate(isConnect ? "/settings" : "/login"), 3000);
+                const errData = err?.response?.data;
+
+                // Handle "already linked" specifically
+                if (errData?.code === "GITHUB_ALREADY_LINKED") {
+                    setStatus("already_linked");
+                    setLinkedInfo({
+                        githubUsername: errData.githubUsername,
+                        linkedTo: errData.linkedTo,
+                    });
+                    setErrorMsg(errData.error);
+                    // Don't auto-redirect — let user read the message
+                } else {
+                    setStatus("error");
+                    setErrorMsg(errData?.error || "GitHub authentication failed");
+                    toaster.create({
+                        title: "Authentication failed",
+                        description: errData?.error || "Could not sign in with GitHub",
+                        type: "error",
+                    });
+                    setTimeout(() => navigate(isConnect ? "/settings" : "/login"), 3000);
+                }
             }
         }
 
@@ -149,7 +160,9 @@ export default function GithubCallbackPage() {
                             ? "linear-gradient(90deg, #10b981, #14b8a6)"
                             : status === "error"
                                 ? "linear-gradient(90deg, #ef4444, #f59e0b)"
-                                : "linear-gradient(90deg, #14b8a6, #8b5cf6, #3b82f6)"
+                                : status === "already_linked"
+                                    ? "linear-gradient(90deg, #f59e0b, #f97316)"
+                                    : "linear-gradient(90deg, #14b8a6, #8b5cf6, #3b82f6)"
                     }
                 />
 
@@ -165,13 +178,17 @@ export default function GithubCallbackPage() {
                                     ? "rgba(16, 185, 129, 0.1)"
                                     : status === "error"
                                         ? "rgba(239, 68, 68, 0.1)"
-                                        : "linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(139, 92, 246, 0.1))"
+                                        : status === "already_linked"
+                                            ? "rgba(245, 158, 11, 0.1)"
+                                            : "linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(139, 92, 246, 0.1))"
                             }
                             border={`1px solid ${status === "success"
                                 ? "rgba(16, 185, 129, 0.2)"
                                 : status === "error"
                                     ? "rgba(239, 68, 68, 0.2)"
-                                    : t.border
+                                    : status === "already_linked"
+                                        ? "rgba(245, 158, 11, 0.2)"
+                                        : t.border
                                 }`}
                             align="center"
                             justify="center"
@@ -189,6 +206,11 @@ export default function GithubCallbackPage() {
                                     <LuCircleX />
                                 </Icon>
                             )}
+                            {status === "already_linked" && (
+                                <Icon color="#f59e0b" boxSize="8">
+                                    <LuTriangleAlert />
+                                </Icon>
+                            )}
                         </Flex>
 
                         {/* Text */}
@@ -202,38 +224,92 @@ export default function GithubCallbackPage() {
                                 {status === "loading" && "Authenticating..."}
                                 {status === "success" && "Welcome!"}
                                 {status === "error" && "Authentication Failed"}
+                                {status === "already_linked" && "Account Already Linked"}
                             </Text>
                             <Text
                                 fontSize="sm"
                                 color={t.textMuted}
                                 textAlign="center"
-                                maxW="280px"
+                                maxW="320px"
                             >
                                 {status === "loading" &&
                                     "Verifying your GitHub credentials..."}
                                 {status === "success" &&
                                     "Successfully signed in. Redirecting to dashboard..."}
                                 {status === "error" && (errorMsg || "Something went wrong")}
+                                {status === "already_linked" && null}
                             </Text>
                         </VStack>
 
+                        {/* Already linked warning details */}
+                        {status === "already_linked" && linkedInfo && (
+                            <Box w="100%">
+                                <Box
+                                    bg="rgba(245, 158, 11, 0.06)"
+                                    border="1px solid rgba(245, 158, 11, 0.15)"
+                                    borderRadius="xl"
+                                    p="4"
+                                    mb="3"
+                                >
+                                    <VStack gap="2.5" align="stretch">
+                                        <Flex align="center" gap="2">
+                                            <Icon color="#f59e0b" boxSize="4"><LuGithub /></Icon>
+                                            <Text fontSize="sm" fontWeight="700" color={t.textPrimary}>
+                                                @{linkedInfo.githubUsername}
+                                            </Text>
+                                        </Flex>
+                                        <Text fontSize="13px" color={t.textMuted} lineHeight="1.6">
+                                            This GitHub account is already linked to <Text as="span" fontWeight="600" color={t.textPrimary}>{linkedInfo.linkedTo}</Text>.
+                                        </Text>
+                                        <Text fontSize="12px" color={t.textFaint} lineHeight="1.5">
+                                            Each GitHub account can only be connected to one Impact Analyzer account. Disconnect it from the other account first, or try a different GitHub account.
+                                        </Text>
+                                    </VStack>
+                                </Box>
+
+                                <Flex
+                                    as="button"
+                                    w="100%"
+                                    py="3"
+                                    bg={t.bgInput}
+                                    border={`1px solid ${t.border}`}
+                                    borderRadius="xl"
+                                    fontSize="sm"
+                                    fontWeight="600"
+                                    color={t.textPrimary}
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    gap="2"
+                                    cursor="pointer"
+                                    _hover={{ bg: t.bgHover, borderColor: t.borderAccent }}
+                                    transition="all 0.2s"
+                                    onClick={() => navigate("/settings")}
+                                >
+                                    Back to Settings
+                                </Flex>
+                            </Box>
+                        )}
+
                         {/* GitHub indicator */}
-                        <Flex
-                            align="center"
-                            gap="2"
-                            bg={t.bgInput}
-                            px="4"
-                            py="2"
-                            borderRadius="full"
-                            border={`1px solid ${t.border}`}
-                        >
-                            <Icon color={t.textMuted} boxSize="4">
-                                <LuGithub />
-                            </Icon>
-                            <Text fontSize="xs" color={t.textSecondary} fontWeight="500">
-                                GitHub OAuth
-                            </Text>
-                        </Flex>
+                        {status !== "already_linked" && (
+                            <Flex
+                                align="center"
+                                gap="2"
+                                bg={t.bgInput}
+                                px="4"
+                                py="2"
+                                borderRadius="full"
+                                border={`1px solid ${t.border}`}
+                            >
+                                <Icon color={t.textMuted} boxSize="4">
+                                    <LuGithub />
+                                </Icon>
+                                <Text fontSize="xs" color={t.textSecondary} fontWeight="500">
+                                    GitHub OAuth
+                                </Text>
+                            </Flex>
+                        )}
                     </VStack>
                 </Box>
             </Box>

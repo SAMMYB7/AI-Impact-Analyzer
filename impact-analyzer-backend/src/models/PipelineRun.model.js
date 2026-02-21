@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const pipelineRunSchema = new mongoose.Schema(
   {
     prId: { type: String, required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     stages: [
       {
         name: { type: String, required: true },

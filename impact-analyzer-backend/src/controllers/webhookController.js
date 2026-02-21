@@ -1,4 +1,5 @@
 const PullRequest = require("../models/PullRequest.model");
+const User = require("../models/User.model");
 const pipelineService = require("../services/pipelineService");
 const logService = require("../services/logService");
 const analyzerService = require("../services/analyzerService");
@@ -56,11 +57,14 @@ async function handleGithubWebhook(req, res) {
     const branch = pull_request.head.ref;
     const commitMessage = pull_request.title || "";
 
-    // ── Only process repos owned by SAMMYB7 ─────────────────
-    if (owner.toLowerCase() !== GITHUB_OWNER.toLowerCase()) {
-      console.log(`ℹ️ Ignoring PR from foreign owner: ${owner}`);
-      return res.status(200).json({ message: `Ignored owner: ${owner}` });
+    // ── Find the registered user for this repository ────────────
+    const user = await User.findOne({ githubUsername: new RegExp(`^${owner}$`, "i") });
+    if (!user) {
+      console.log(`ℹ️ Ignoring PR — owner ${owner} is not registered in our system`);
+      return res.status(200).json({ message: `Ignored owner: ${owner} not registered` });
     }
+
+    const userId = user._id;
 
     console.log(
       `🔔 GitHub webhook: PR #${prNumber} ${action} by ${author} on ${repoName}/${branch}`,
@@ -106,9 +110,9 @@ async function handleGithubWebhook(req, res) {
 
       console.log(`🔄 PR ${prId} updated (${action})`);
     } else {
-      // ── Create new PullRequest document ─────────────────────
       pr = await PullRequest.create({
         prId,
+        userId,
         repo,
         repoOwner: owner,
         repoName,
@@ -203,6 +207,7 @@ async function handleSimulateWebhook(req, res) {
     // ── Create PullRequest document ─────────────────────────
     const pr = await PullRequest.create({
       prId,
+      userId: req.user._id, // Set the user ID!
       repo,
       author,
       branch,

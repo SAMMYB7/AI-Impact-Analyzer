@@ -90,7 +90,7 @@ export default function AIAnalysisPage() {
               AI Impact Analysis
             </Text>
             <Text fontSize="13px" color={t.textMuted}>
-              Risk prediction powered by Ollama qwen3-coder-next
+              Risk prediction powered by Ollama {aiHealth?.model || "..."}
             </Text>
           </Box>
           {aiHealth && (

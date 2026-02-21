@@ -145,18 +145,28 @@ export default function PullRequestsPage() {
 
       {/* Search + Filters */}
       <GlassCard>
-        <Flex gap="3" flexWrap="wrap" align="center">
+        <Flex
+          direction={{ base: "column", md: "row" }}
+          gap="3"
+          align={{ base: "stretch", md: "center" }}
+        >
+          {/* Search Input */}
           <Flex
             align="center"
             flex="1"
-            minW="200px"
+            minW="0"
             bg={t.bgInput}
-            borderRadius="lg"
+            borderRadius="xl"
             border={`1px solid ${t.border}`}
             px="3"
             gap="2"
+            transition="all 0.2s"
+            _focusWithin={{
+              borderColor: "#3b82f6",
+              boxShadow: "0 0 0 3px rgba(59, 130, 246, 0.1)",
+            }}
           >
-            <Icon color={t.textFaint} boxSize="4">
+            <Icon color={t.textFaint} boxSize="4" flexShrink="0">
               <LuSearch />
             </Icon>
             <Input
@@ -170,7 +180,9 @@ export default function PullRequestsPage() {
               _placeholder={{ color: t.textFaint }}
             />
           </Flex>
-          <Flex gap="1.5" align="center">
+
+          {/* Filter Pills */}
+          <Flex gap="1.5" align="center" flexShrink="0" flexWrap="wrap">
             {statuses.map((s) => {
               const isActive = statusFilter === s;
               const colors = {
@@ -187,7 +199,7 @@ export default function PullRequestsPage() {
                   as="button"
                   px="3"
                   py="1.5"
-                  borderRadius="md"
+                  borderRadius="lg"
                   fontSize="11px"
                   fontWeight="600"
                   textTransform="uppercase"
@@ -197,6 +209,7 @@ export default function PullRequestsPage() {
                   border={`1px solid ${isActive ? `${c}30` : "transparent"}`}
                   cursor="pointer"
                   transition="all 0.15s"
+                  whiteSpace="nowrap"
                   _hover={{ bg: `${c}10` }}
                   onClick={() => setStatusFilter(s)}
                 >

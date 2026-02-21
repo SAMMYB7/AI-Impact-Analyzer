@@ -11,6 +11,8 @@ const {
     connectGithub,
     disconnectGithub,
     githubAuth,
+    forgotPassword,
+    resetPassword,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/auth");
 
@@ -20,6 +22,8 @@ router.post("/verify-otp", verifyOTP);
 router.post("/resend-otp", resendOTP);
 router.post("/login", login);
 router.post("/github", githubAuth);
+router.post("/forgot-password", forgotPassword);
+router.put("/reset-password/:token", resetPassword);
 
 // Protected routes
 router.get("/me", protect, getMe);

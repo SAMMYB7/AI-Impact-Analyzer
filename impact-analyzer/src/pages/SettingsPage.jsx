@@ -346,7 +346,7 @@ export default function SettingsPage() {
               <Text fontSize="14px" fontWeight="700" color={t.textPrimary}>Change Password</Text>
             </Flex>
 
-            {isGithubOnly && !user?.password ? (
+            {!user?.hasPassword ? (
               <Box bg="rgba(245, 158, 11, 0.08)" border="1px solid rgba(245, 158, 11, 0.2)" borderRadius="xl" p="4">
                 <Text fontSize="sm" color="#f59e0b" fontWeight="600">GitHub-only Account</Text>
                 <Text fontSize="12px" color={t.textMuted} mt="1">You signed up via GitHub and don't have a password. Set one below to enable email login.</Text>
@@ -355,7 +355,7 @@ export default function SettingsPage() {
 
             <VStack gap="3" mt="4">
               {/* Current Password — only show if user has one */}
-              {user?.authProvider === "local" && (
+              {user?.hasPassword && (
                 <Box w="100%">
                   <Text fontSize="xs" fontWeight="600" color={t.textSecondary} mb="1.5">Current Password</Text>
                   <Flex align="center" bg={t.bgInput} border={`1px solid ${t.border}`} borderRadius="xl" px="3" _focusWithin={{ borderColor: "#8b5cf6" }}>
@@ -385,7 +385,7 @@ export default function SettingsPage() {
 
               <Flex as="button" w="100%" py="3" mt="2" bg="linear-gradient(135deg, #8b5cf6, #7c3aed)" color="white" borderRadius="xl" fontSize="sm" fontWeight="700" display="flex" alignItems="center" justifyContent="center" gap="2" cursor={savingPassword ? "not-allowed" : "pointer"} opacity={savingPassword ? 0.7 : 1} transition="all 0.2s" _hover={{ transform: "translateY(-1px)", boxShadow: "0 8px 24px rgba(139, 92, 246, 0.35)" }} onClick={handleChangePassword}>
                 {savingPassword ? <Icon boxSize="4" animation="spin 1s linear infinite"><LuLoader /></Icon> : <Icon boxSize="4"><LuShield /></Icon>}
-                {isGithubOnly ? "Set Password" : "Update Password"}
+                {!user?.hasPassword ? "Set Password" : "Update Password"}
               </Flex>
             </VStack>
           </GlassCard>

@@ -4,10 +4,10 @@ const analyzerService = require("../services/analyzerService");
 const { cancelAutoAnalysis } = require("../services/timerService");
 
 // GET /api/pr
-// Fetch all PRs, newest first
+// Fetch all PRs for the logged-in user, newest first
 async function getAllPRs(req, res) {
   try {
-    const prs = await PullRequest.find().sort({ createdAt: -1 }).limit(50);
+    const prs = await PullRequest.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(50);
     res.json(prs);
   } catch (error) {
     console.error("❌ Get all PRs error:", error.message);
@@ -16,10 +16,10 @@ async function getAllPRs(req, res) {
 }
 
 // GET /api/pr/:id
-// Fetch a single PR by its prId
+// Fetch a single PR by its prId (must belong to user)
 async function getPRById(req, res) {
   try {
-    const pr = await PullRequest.findOne({ prId: req.params.id });
+    const pr = await PullRequest.findOne({ prId: req.params.id, userId: req.user._id });
 
     if (!pr) {
       return res.status(404).json({ error: "PR not found" });
@@ -42,6 +42,12 @@ async function getPRById(req, res) {
 async function analyzePR(req, res) {
   try {
     const prId = req.params.id;
+
+    // Verify the user owns this PR
+    const prCheck = await PullRequest.findOne({ prId, userId: req.user._id });
+    if (!prCheck) {
+      return res.status(404).json({ error: "PR not found or unauthorized" });
+    }
 
     // Cancel any pending auto-analysis timer for this PR
     const wasCancelled = cancelAutoAnalysis(prId);
@@ -70,10 +76,10 @@ async function analyzePR(req, res) {
 }
 
 // GET /api/pr/recent
-// Fetch the 20 most recent PRs
+// Fetch the 20 most recent PRs for the logged-in user
 async function getRecentPRs(req, res) {
   try {
-    const prs = await PullRequest.find().sort({ createdAt: -1 }).limit(20);
+    const prs = await PullRequest.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(20);
     res.json(prs);
   } catch (error) {
     console.error("❌ Get recent PRs error:", error.message);
@@ -87,7 +93,7 @@ async function getPRStatus(req, res) {
   try {
     const prId = req.params.id;
 
-    const pr = await PullRequest.findOne({ prId });
+    const pr = await PullRequest.findOne({ prId, userId: req.user._id });
     if (!pr) {
       return res.status(404).json({ error: "PR not found" });
     }
