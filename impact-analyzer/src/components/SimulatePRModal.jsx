@@ -29,7 +29,9 @@ import {
   LuLink,
   LuLock,
   LuGlobe,
+  LuShield,
 } from "react-icons/lu";
+import { useNavigate } from "react-router-dom";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { useAuth } from "../context/AuthContext";
 import { createPR } from "../api/api";
@@ -38,6 +40,7 @@ import API from "../api/api";
 export default function SimulatePRModal({ isOpen, onClose, onCreated }) {
   const t = useThemeColors();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const hasGithub = !!user?.githubUsername;
 
   // Steps: "repos" → "pulls" → "confirm"
@@ -303,6 +306,32 @@ export default function SimulatePRModal({ isOpen, onClose, onCreated }) {
                   ))}
                 </Flex>
               )}
+
+              {/* Private repos hint */}
+              <Flex
+                px="5"
+                py="3"
+                align="center"
+                gap="2.5"
+                bg={t.bgInput}
+                borderTop={`1px solid ${t.border}`}
+              >
+                <Icon color="#f59e0b" boxSize="3.5" flexShrink="0"><LuShield /></Icon>
+                <Text fontSize="11px" color={t.textFaint} flex="1">
+                  Can't see private repos?{" "}
+                  <Text
+                    as="span"
+                    color="#14b8a6"
+                    fontWeight="600"
+                    cursor="pointer"
+                    _hover={{ textDecoration: "underline" }}
+                    onClick={() => { onClose(); navigate("/settings"); }}
+                  >
+                    Reconnect GitHub in Settings
+                  </Text>
+                  {" "}to grant private repository access.
+                </Text>
+              </Flex>
             </Box>
           ) : step === "pulls" ? (
             /* Pulls List */

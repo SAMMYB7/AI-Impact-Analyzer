@@ -142,7 +142,7 @@ export default function SettingsPage() {
     }
     // Use a special redirect that brings user back to settings with the code
     const redirectUri = `${window.location.origin}/auth/github/callback?connect=true`;
-    const scope = "user:email read:user";
+    const scope = "user:email read:user repo";
     const githubUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
     window.location.href = githubUrl;
   };
