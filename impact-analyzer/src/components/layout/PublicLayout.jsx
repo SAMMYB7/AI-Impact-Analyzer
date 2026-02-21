@@ -30,10 +30,12 @@ export default function PublicLayout() {
             }}
         >
             <PublicNavbar />
-            <Box flex="1">
+            <Box flex="1 0 auto">
                 <Outlet />
             </Box>
-            <PublicFooter />
+            <Box flexShrink="0" w="100%">
+                <PublicFooter />
+            </Box>
         </Box>
     );
 }

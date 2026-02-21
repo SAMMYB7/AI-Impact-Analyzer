@@ -88,7 +88,7 @@ export default function LoginPage() {
     return (
         <Flex
             w="100%"
-            minH="100vh"
+            minH="80vh"
             align="center"
             justify="center"
             position="relative"
@@ -161,19 +161,7 @@ export default function LoginPage() {
                 <Box p={{ base: "6", md: "10" }} pt={{ base: "8", md: "12" }}>
                     {/* Brand Header */}
                     <VStack gap="3" mb="8">
-                        <Flex
-                            w="48px"
-                            h="48px"
-                            borderRadius="14px"
-                            bg="linear-gradient(135deg, #14b8a6, #8b5cf6)"
-                            align="center"
-                            justify="center"
-                            boxShadow="0 0 24px rgba(20, 184, 166, 0.3)"
-                        >
-                            <Icon color="white" boxSize="6">
-                                <LuZap />
-                            </Icon>
-                        </Flex>
+
                         <Box textAlign="center">
                             <Text
                                 fontSize="xl"

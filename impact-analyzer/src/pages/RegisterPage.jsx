@@ -171,7 +171,7 @@ export default function RegisterPage() {
     };
 
     return (
-        <Flex w="100%" minH="100vh" align="center" justify="center" position="relative" overflow="hidden" pt="28" pb="16">
+        <Flex w="100%" minH="80vh" align="center" justify="center" position="relative" overflow="hidden" pt="28" pb="16">
             {/* Background Orbs */}
             <Box position="absolute" top="-15%" right="-10%" w="500px" h="500px" borderRadius="full"
                 bg="radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%)" filter="blur(60px)" animation="float 9s ease-in-out infinite" pointerEvents="none" />
@@ -187,9 +187,6 @@ export default function RegisterPage() {
                         <>
                             {/* Registration Phase */}
                             <VStack gap="2" mb="8" textAlign="center">
-                                <Flex w="48px" h="48px" borderRadius="14px" bg="linear-gradient(135deg, #8b5cf6, #14b8a6)" align="center" justify="center" boxShadow="0 0 24px rgba(139, 92, 246, 0.3)">
-                                    <Icon color="white" boxSize="6"><LuZap /></Icon>
-                                </Flex>
                                 <Text fontSize="xl" fontWeight="800" color={t.textPrimary}>Create account</Text>
                                 <Text fontSize="sm" color={t.textMuted}>Get started with Impact Analyzer</Text>
                             </VStack>

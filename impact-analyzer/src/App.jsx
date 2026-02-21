@@ -5,6 +5,7 @@ import { AuthProvider } from "./context/AuthContext";
 import MainLayout from "./components/layout/MainLayout";
 import PublicLayout from "./components/layout/PublicLayout";
 import ProtectedRoute from "./components/shared/ProtectedRoute";
+import GuestRoute from "./components/shared/GuestRoute";
 import { Toaster } from "./components/ui/toaster";
 
 // Public Pages
@@ -36,8 +37,12 @@ function App() {
               {/* Public Pages with Navbar & Footer */}
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
+
+                {/* Redirect logged-in users away from auth pages */}
+                <Route element={<GuestRoute />}>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                </Route>
               </Route>
 
               {/* GitHub callback (standalone — no navbar/footer needed) */}

@@ -8,6 +8,7 @@ import { LuZap, LuArrowRight, LuSun, LuMoon } from "react-icons/lu";
 import { useThemeColors } from "../../hooks/useThemeColors";
 import { useColorMode } from "../ui/color-mode";
 import { useState, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 const NAV_LINKS = [
     { path: "/", label: "Home" },
@@ -21,6 +22,7 @@ export default function PublicNavbar() {
     const isDark = colorMode === "dark";
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
+    const { isAuthenticated, user } = useAuth();
 
     useEffect(() => {
         const parent = document.querySelector("[data-public-scroll]");
@@ -176,50 +178,89 @@ export default function PublicNavbar() {
                         </Icon>
                     </Flex>
 
-                    {/* Login */}
-                    <Link to="/login">
-                        <Flex
-                            px="3.5"
-                            py="1.5"
-                            borderRadius="full"
-                            fontSize="13px"
-                            fontWeight="500"
-                            color={t.textMuted}
-                            cursor="pointer"
-                            _hover={{ color: t.textPrimary }}
-                            transition="all 0.2s"
-                            align="center"
-                        >
-                            Sign in
-                        </Flex>
-                    </Link>
+                    {isAuthenticated ? (
+                        <Link to="/dashboard">
+                            <Flex
+                                px="4"
+                                py="1.5"
+                                borderRadius="full"
+                                bg="linear-gradient(135deg, #14b8a6, #0d9488)"
+                                color="white"
+                                fontSize="13px"
+                                fontWeight="600"
+                                cursor="pointer"
+                                align="center"
+                                gap="2"
+                                transition="all 0.2s cubic-bezier(0.22, 1, 0.36, 1)"
+                                _hover={{
+                                    transform: "translateY(-1px)",
+                                    boxShadow: "0 4px 16px rgba(20, 184, 166, 0.35)",
+                                }}
+                                _active={{ transform: "translateY(0)" }}
+                            >
+                                <Text
+                                    maxW="100px"
+                                    isTruncated
+                                    fontWeight="400"
+                                    opacity="0.9"
+                                    display={{ base: "none", sm: "block" }}
+                                >
+                                    {user?.name?.split(" ")[0]}
+                                </Text>
+                                Dashboard
+                                <Icon boxSize="3">
+                                    <LuArrowRight />
+                                </Icon>
+                            </Flex>
+                        </Link>
+                    ) : (
+                        <>
+                            {/* Login */}
+                            <Link to="/login">
+                                <Flex
+                                    px="3.5"
+                                    py="1.5"
+                                    borderRadius="full"
+                                    fontSize="13px"
+                                    fontWeight="500"
+                                    color={t.textMuted}
+                                    cursor="pointer"
+                                    _hover={{ color: t.textPrimary }}
+                                    transition="all 0.2s"
+                                    align="center"
+                                >
+                                    Sign in
+                                </Flex>
+                            </Link>
 
-                    {/* Get Started */}
-                    <Link to="/register">
-                        <Flex
-                            px="4"
-                            py="1.5"
-                            borderRadius="full"
-                            bg="linear-gradient(135deg, #14b8a6, #0d9488)"
-                            color="white"
-                            fontSize="13px"
-                            fontWeight="600"
-                            cursor="pointer"
-                            align="center"
-                            gap="1"
-                            transition="all 0.2s cubic-bezier(0.22, 1, 0.36, 1)"
-                            _hover={{
-                                transform: "translateY(-1px)",
-                                boxShadow: "0 4px 16px rgba(20, 184, 166, 0.35)",
-                            }}
-                            _active={{ transform: "translateY(0)" }}
-                        >
-                            Get Started
-                            <Icon boxSize="3">
-                                <LuArrowRight />
-                            </Icon>
-                        </Flex>
-                    </Link>
+                            {/* Get Started */}
+                            <Link to="/register">
+                                <Flex
+                                    px="4"
+                                    py="1.5"
+                                    borderRadius="full"
+                                    bg="linear-gradient(135deg, #14b8a6, #0d9488)"
+                                    color="white"
+                                    fontSize="13px"
+                                    fontWeight="600"
+                                    cursor="pointer"
+                                    align="center"
+                                    gap="1"
+                                    transition="all 0.2s cubic-bezier(0.22, 1, 0.36, 1)"
+                                    _hover={{
+                                        transform: "translateY(-1px)",
+                                        boxShadow: "0 4px 16px rgba(20, 184, 166, 0.35)",
+                                    }}
+                                    _active={{ transform: "translateY(0)" }}
+                                >
+                                    Get Started
+                                    <Icon boxSize="3">
+                                        <LuArrowRight />
+                                    </Icon>
+                                </Flex>
+                            </Link>
+                        </>
+                    )}
                 </HStack>
             </Flex>
         </Box>
