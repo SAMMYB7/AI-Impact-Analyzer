@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// PUBLIC NAVBAR — Floating glassmorphism navbar for public pages
+// PUBLIC NAVBAR — Floating pill navbar inspired by modern SaaS
 // ═══════════════════════════════════════════════════════════════
 
 import { Box, Flex, Text, Icon, HStack } from "@chakra-ui/react";
@@ -23,13 +23,16 @@ export default function PublicNavbar() {
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
-        const handleScroll = () => setScrolled(window.scrollY > 20);
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
+        const parent = document.querySelector("[data-public-scroll]");
+        if (!parent) return;
+        const handleScroll = () => setScrolled(parent.scrollTop > 20);
+        parent.addEventListener("scroll", handleScroll);
+        return () => parent.removeEventListener("scroll", handleScroll);
     }, []);
 
     const handleHashClick = (hash) => {
-        const el = document.querySelector(hash.replace("/#", "#"));
+        const id = hash.replace("/#", "");
+        const el = document.getElementById(id);
         if (el) el.scrollIntoView({ behavior: "smooth" });
     };
 
@@ -41,89 +44,102 @@ export default function PublicNavbar() {
             left="0"
             right="0"
             zIndex="50"
-            transition="all 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
+            px="4"
+            pt={scrolled ? "2" : "4"}
+            transition="padding 0.3s ease"
+            pointerEvents="none"
         >
             <Flex
-                maxW="1200px"
+                maxW="820px"
                 mx="auto"
-                mt={scrolled ? "2" : "4"}
-                px="5"
-                py="3"
+                px="2"
+                py="1.5"
                 align="center"
                 justify="space-between"
-                bg={scrolled ? (isDark ? "rgba(10, 14, 26, 0.85)" : "rgba(255, 255, 255, 0.85)") : "transparent"}
-                backdropFilter={scrolled ? "blur(24px)" : "none"}
-                border={scrolled ? `1px solid ${t.border}` : "1px solid transparent"}
-                borderRadius="2xl"
-                boxShadow={scrolled ? t.cardShadow : "none"}
+                bg={
+                    scrolled
+                        ? isDark
+                            ? "rgba(10, 14, 26, 0.88)"
+                            : "rgba(255, 255, 255, 0.88)"
+                        : isDark
+                            ? "rgba(10, 14, 26, 0.5)"
+                            : "rgba(255, 255, 255, 0.5)"
+                }
+                backdropFilter="blur(24px)"
+                border={`1px solid ${scrolled ? t.border : isDark ? "rgba(148, 163, 184, 0.05)" : "rgba(100, 116, 139, 0.08)"}`}
+                borderRadius="full"
+                boxShadow={
+                    scrolled
+                        ? isDark
+                            ? "0 8px 32px rgba(0, 0, 0, 0.4)"
+                            : "0 8px 32px rgba(0, 0, 0, 0.08)"
+                        : "none"
+                }
                 transition="all 0.3s cubic-bezier(0.22, 1, 0.36, 1)"
+                pointerEvents="auto"
             >
                 {/* Brand */}
                 <Link to="/">
-                    <Flex align="center" gap="2.5" cursor="pointer">
+                    <Flex align="center" gap="2" pl="2" cursor="pointer">
                         <Flex
-                            w="34px"
-                            h="34px"
-                            borderRadius="9px"
+                            w="28px"
+                            h="28px"
+                            borderRadius="8px"
                             bg="linear-gradient(135deg, #14b8a6, #8b5cf6)"
                             align="center"
                             justify="center"
-                            boxShadow="0 0 16px rgba(20, 184, 166, 0.25)"
                         >
-                            <Icon color="white" boxSize="4.5">
+                            <Icon color="white" boxSize="3.5">
                                 <LuZap />
                             </Icon>
                         </Flex>
-                        <Box>
-                            <Text
-                                fontSize="sm"
-                                fontWeight="800"
-                                color={t.textPrimary}
-                                letterSpacing="-0.02em"
-                                lineHeight="1.2"
-                            >
-                                Impact
-                            </Text>
-                            <Text
-                                fontSize="9px"
-                                color={t.textMuted}
-                                letterSpacing="0.1em"
-                                textTransform="uppercase"
-                                fontWeight="500"
-                            >
-                                Analyzer
-                            </Text>
-                        </Box>
+                        <Text
+                            fontSize="sm"
+                            fontWeight="800"
+                            color={t.textPrimary}
+                            letterSpacing="-0.02em"
+                            display={{ base: "none", sm: "block" }}
+                        >
+                            Impact
+                        </Text>
                     </Flex>
                 </Link>
 
                 {/* Center Links */}
-                <HStack gap="1" display={{ base: "none", md: "flex" }}>
+                <HStack gap="0.5" display={{ base: "none", md: "flex" }}>
                     {NAV_LINKS.map((link) => (
                         <Box
                             key={link.path}
                             as={link.isHash ? "button" : Link}
                             to={link.isHash ? undefined : link.path}
-                            onClick={link.isHash ? () => handleHashClick(link.path) : undefined}
+                            onClick={
+                                link.isHash
+                                    ? () => handleHashClick(link.path)
+                                    : undefined
+                            }
                             px="3.5"
-                            py="2"
-                            borderRadius="lg"
+                            py="1.5"
+                            borderRadius="full"
                             fontSize="13px"
                             fontWeight="500"
                             color={
                                 location.pathname === link.path && !link.isHash
                                     ? t.textPrimary
-                                    : t.textSecondary
+                                    : t.textMuted
                             }
                             bg={
                                 location.pathname === link.path && !link.isHash
-                                    ? t.bgHover
+                                    ? isDark
+                                        ? "rgba(148, 163, 184, 0.08)"
+                                        : "rgba(100, 116, 139, 0.06)"
                                     : "transparent"
                             }
                             transition="all 0.2s"
                             _hover={{
                                 color: t.textPrimary,
-                                bg: t.bgHover,
+                                bg: isDark
+                                    ? "rgba(148, 163, 184, 0.06)"
+                                    : "rgba(100, 116, 139, 0.06)",
                             }}
                             cursor="pointer"
                             border="none"
@@ -135,22 +151,27 @@ export default function PublicNavbar() {
                 </HStack>
 
                 {/* Right Actions */}
-                <HStack gap="2">
+                <HStack gap="1.5">
                     {/* Theme Toggle */}
                     <Flex
-                        w="34px"
-                        h="34px"
-                        borderRadius="lg"
-                        bg={t.bgInput}
+                        w="30px"
+                        h="30px"
+                        borderRadius="full"
                         align="center"
                         justify="center"
                         cursor="pointer"
                         onClick={toggleColorMode}
-                        _hover={{ bg: t.bgHover }}
-                        border={`1px solid ${t.border}`}
+                        _hover={{
+                            bg: isDark
+                                ? "rgba(148, 163, 184, 0.08)"
+                                : "rgba(100, 116, 139, 0.06)",
+                        }}
                         transition="all 0.2s"
                     >
-                        <Icon color={isDark ? "#fbbf24" : "#8b5cf6"} boxSize="4">
+                        <Icon
+                            color={isDark ? "#fbbf24" : "#8b5cf6"}
+                            boxSize="3.5"
+                        >
                             {isDark ? <LuSun /> : <LuMoon />}
                         </Icon>
                     </Flex>
@@ -158,14 +179,14 @@ export default function PublicNavbar() {
                     {/* Login */}
                     <Link to="/login">
                         <Flex
-                            px="4"
-                            py="2"
-                            borderRadius="lg"
+                            px="3.5"
+                            py="1.5"
+                            borderRadius="full"
                             fontSize="13px"
                             fontWeight="500"
-                            color={t.textSecondary}
+                            color={t.textMuted}
                             cursor="pointer"
-                            _hover={{ color: t.textPrimary, bg: t.bgHover }}
+                            _hover={{ color: t.textPrimary }}
                             transition="all 0.2s"
                             align="center"
                         >
@@ -177,15 +198,15 @@ export default function PublicNavbar() {
                     <Link to="/register">
                         <Flex
                             px="4"
-                            py="2"
-                            borderRadius="lg"
+                            py="1.5"
+                            borderRadius="full"
                             bg="linear-gradient(135deg, #14b8a6, #0d9488)"
                             color="white"
                             fontSize="13px"
                             fontWeight="600"
                             cursor="pointer"
                             align="center"
-                            gap="1.5"
+                            gap="1"
                             transition="all 0.2s cubic-bezier(0.22, 1, 0.36, 1)"
                             _hover={{
                                 transform: "translateY(-1px)",
@@ -194,7 +215,7 @@ export default function PublicNavbar() {
                             _active={{ transform: "translateY(0)" }}
                         >
                             Get Started
-                            <Icon boxSize="3.5">
+                            <Icon boxSize="3">
                                 <LuArrowRight />
                             </Icon>
                         </Flex>

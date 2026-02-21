@@ -13,6 +13,7 @@ export default function PublicLayout() {
 
     return (
         <Box
+            data-public-scroll
             h="100vh"
             bg={t.bg}
             display="flex"
