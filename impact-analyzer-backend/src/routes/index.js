@@ -5,6 +5,7 @@ const prRoutes = require("./prRoutes");
 const logsRoutes = require("./logsRoutes");
 const authRoutes = require("./authRoutes");
 const githubRoutes = require("./githubRoutes");
+const { checkOllamaHealth, OLLAMA_MODEL, OLLAMA_URL } = require("../services/aiService");
 
 // Health check
 router.get("/health", (req, res) => {
@@ -12,6 +13,17 @@ router.get("/health", (req, res) => {
     status: "ok",
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
+  });
+});
+
+// AI model health check
+router.get("/ai/health", async (req, res) => {
+  const health = await checkOllamaHealth();
+  res.status(200).json({
+    provider: "ollama",
+    model: OLLAMA_MODEL,
+    url: OLLAMA_URL,
+    ...health,
   });
 });
 

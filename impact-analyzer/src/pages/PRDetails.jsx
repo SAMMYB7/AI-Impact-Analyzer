@@ -686,15 +686,58 @@ export default function PRDetails() {
         </Box>
       )}
 
+      {/* AI Insights (from Ollama) */}
+      {pr.status === "completed" && (pr.aiReasoning || pr.aiSuggestions?.length > 0) && (
+        <Box mb="4">
+          <GlassCard>
+            <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="3">
+              <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuShieldAlert /></Icon>
+              AI Analysis Insights
+              {pr.analysisProvider && (
+                <Badge ml="2" bg="rgba(139,92,246,0.1)" color="#a78bfa" borderRadius="md" px="2" py="0.5" fontSize="9px" fontWeight="600" verticalAlign="middle">{pr.analysisProvider}</Badge>
+              )}
+            </Text>
+            {pr.aiReasoning && (
+              <Box px="3" py="2.5" borderRadius="lg" bg={t.bgHover} border={`1px solid ${t.border}`} mb={pr.aiSuggestions?.length > 0 ? "3" : "0"}>
+                <Text fontSize="12px" color={t.textPrimary} lineHeight="1.6">{pr.aiReasoning}</Text>
+              </Box>
+            )}
+            {pr.aiSuggestions?.length > 0 && (
+              <Box>
+                <Text fontSize="10px" fontWeight="600" color={t.textFaint} textTransform="uppercase" letterSpacing="0.05em" mb="2">Suggestions</Text>
+                <Flex direction="column" gap="1.5">
+                  {pr.aiSuggestions.map((suggestion, idx) => (
+                    <Flex key={idx} align="flex-start" gap="2" px="3" py="2" borderRadius="lg" bg={t.bgInput} border={`1px solid ${t.border}`}>
+                      <Text fontSize="11px" color="#8b5cf6" fontWeight="700" mt="0.5">{idx + 1}.</Text>
+                      <Text fontSize="12px" color={t.textSecondary} lineHeight="1.5">{suggestion}</Text>
+                    </Flex>
+                  ))}
+                </Flex>
+              </Box>
+            )}
+          </GlassCard>
+        </Box>
+      )}
+
       {/* Test Execution Results */}
       {pr.testExecution?.results?.length > 0 && (
         <Box mb="4">
           <GlassCard>
             <Flex justify="space-between" align="center" mb="3" flexWrap="wrap" gap="2">
-              <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted}>
-                <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuTestTubeDiagonal /></Icon>
-                Test Execution Results
-              </Text>
+              <Flex align="center" gap="2">
+                <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted}>
+                  <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuTestTubeDiagonal /></Icon>
+                  Test Execution Results
+                </Text>
+                <Badge
+                  bg={pr.testExecutionProvider === "codebuild" ? "rgba(245,158,11,0.1)" : "rgba(59,130,246,0.1)"}
+                  color={pr.testExecutionProvider === "codebuild" ? "#f59e0b" : "#3b82f6"}
+                  borderRadius="md" px="1.5" py="0.5" fontSize="9px" fontWeight="700"
+                  border={`1px solid ${pr.testExecutionProvider === "codebuild" ? "rgba(245,158,11,0.2)" : "rgba(59,130,246,0.2)"}`}
+                >
+                  {pr.testExecutionProvider === "codebuild" ? "AWS CodeBuild" : "Simulation"}
+                </Badge>
+              </Flex>
               <Flex gap="3" align="center">
                 <Flex align="center" gap="1.5">
                   <Box w="8px" h="8px" borderRadius="full" bg="#10b981" />
@@ -777,6 +820,37 @@ export default function PRDetails() {
         </Box>
       )}
 
+      {/* CodeBuild Details */}
+      {pr.codebuildInfo?.buildId && (
+        <Box mb="4">
+          <GlassCard>
+            <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="3">
+              <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuPackage /></Icon>
+              AWS CodeBuild Details
+            </Text>
+            <Flex direction="column" gap="2">
+              {[
+                { label: "Build ID", value: pr.codebuildInfo.buildId },
+                { label: "Project", value: pr.codebuildInfo.projectName },
+                { label: "Status", value: pr.codebuildInfo.status },
+                { label: "Duration", value: pr.codebuildInfo.duration ? `${pr.codebuildInfo.duration}s` : "—" },
+              ].map((item) => (
+                <Flex key={item.label} justify="space-between" align="center">
+                  <Text fontSize="11px" color={t.textMuted}>{item.label}</Text>
+                  <Text fontSize="11px" color={item.label === "Status" ? (pr.codebuildInfo.status === "SUCCEEDED" ? "#10b981" : "#ef4444") : t.textPrimary} fontWeight="600" fontFamily="mono">{item.value}</Text>
+                </Flex>
+              ))}
+              {pr.codebuildInfo.logs?.deepLink && (
+                <Flex justify="space-between" align="center">
+                  <Text fontSize="11px" color={t.textMuted}>Logs</Text>
+                  <Text as="a" href={pr.codebuildInfo.logs.deepLink} target="_blank" rel="noopener" fontSize="11px" color="#3b82f6" fontWeight="600" _hover={{ textDecoration: "underline" }}>View in CloudWatch →</Text>
+                </Flex>
+              )}
+            </Flex>
+          </GlassCard>
+        </Box>
+      )}
+
       {/* Selected & Skipped Tests Summary (fallback if no execution data) */}
       {!pr.testExecution?.results?.length && pr.selectedTests?.length > 0 && (
         <Box mb="4">
@@ -797,6 +871,111 @@ export default function PRDetails() {
         </Box>
       )}
 
+      {/* AI Test Selection Strategy */}
+      {pr.status === "completed" && pr.testSelectionStrategy && (
+        <Box mb="4">
+          <GlassCard>
+            <Flex justify="space-between" align="center" mb="3" flexWrap="wrap" gap="2">
+              <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted}>
+                <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuTestTubes /></Icon>
+                AI Test Selection Strategy
+              </Text>
+              {pr.coverageEstimate > 0 && (
+                <Badge bg="rgba(59,130,246,0.1)" color="#3b82f6" borderRadius="md" px="2" py="0.5" fontSize="10px" fontWeight="700" fontFamily="mono" border="1px solid rgba(59,130,246,0.2)">
+                  ~{pr.coverageEstimate}% coverage
+                </Badge>
+              )}
+            </Flex>
+            <Box px="3" py="2.5" borderRadius="lg" bg={t.bgHover} border={`1px solid ${t.border}`} mb="3">
+              <Text fontSize="12px" color={t.textPrimary} lineHeight="1.6">{pr.testSelectionStrategy}</Text>
+            </Box>
+            {/* Per-test AI reasoning */}
+            {pr.testSelectionDetails?.length > 0 && (
+              <Box>
+                <Text fontSize="10px" fontWeight="600" color={t.textFaint} textTransform="uppercase" letterSpacing="0.05em" mb="2">Test Selection Reasoning ({pr.testSelectionDetails.length})</Text>
+                <Flex direction="column" gap="1.5" maxH="300px" overflowY="auto" css={{ "&::-webkit-scrollbar": { width: "3px" }, "&::-webkit-scrollbar-thumb": { background: "rgba(255,255,255,0.06)", borderRadius: "2px" } }}>
+                  {pr.testSelectionDetails.map((test, idx) => (
+                    <Flex key={idx} align="flex-start" gap="2" px="3" py="2" borderRadius="lg" bg={t.bgInput} border={`1px solid ${t.border}`}>
+                      <Badge bg={test.type === "e2e" ? "rgba(239,68,68,0.1)" : test.type === "integration" ? "rgba(245,158,11,0.1)" : "rgba(59,130,246,0.1)"} color={test.type === "e2e" ? "#ef4444" : test.type === "integration" ? "#f59e0b" : "#3b82f6"} borderRadius="md" px="1.5" py="0.5" fontSize="9px" fontWeight="700" textTransform="uppercase" flexShrink="0" mt="0.5">
+                        {test.type || "unit"}
+                      </Badge>
+                      <Box flex="1" minW="0">
+                        <Text fontSize="11px" color={t.textPrimary} fontFamily="mono" fontWeight="500" truncate>{test.name}</Text>
+                        {test.reason && <Text fontSize="10px" color={t.textFaint} mt="0.5">{test.reason}</Text>}
+                      </Box>
+                    </Flex>
+                  ))}
+                </Flex>
+              </Box>
+            )}
+          </GlassCard>
+        </Box>
+      )}
+
+      {/* AI Merge Safety Assessment */}
+      {pr.testResultsAnalysis && (
+        <Box mb="4">
+          <GlassCard>
+            <Flex justify="space-between" align="center" mb="3" flexWrap="wrap" gap="2">
+              <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted}>
+                <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuShieldAlert /></Icon>
+                AI Merge Assessment
+              </Text>
+              <Badge bg={pr.testResultsAnalysis.isSafeToMerge ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)"} color={pr.testResultsAnalysis.isSafeToMerge ? "#10b981" : "#ef4444"} borderRadius="md" px="2.5" py="1" fontSize="11px" fontWeight="700" border={`1px solid ${pr.testResultsAnalysis.isSafeToMerge ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`}>
+                {pr.testResultsAnalysis.isSafeToMerge ? "✓ Safe to Merge" : "✗ Review Required"}
+                {pr.testResultsAnalysis.mergeConfidence > 0 && ` (${pr.testResultsAnalysis.mergeConfidence}%)`}
+              </Badge>
+            </Flex>
+
+            {pr.testResultsAnalysis.summary && (
+              <Box px="3" py="2.5" borderRadius="lg" bg={t.bgHover} border={`1px solid ${t.border}`} mb="3">
+                <Text fontSize="12px" color={t.textPrimary} lineHeight="1.6">{pr.testResultsAnalysis.summary}</Text>
+              </Box>
+            )}
+
+            <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="3">
+              {pr.testResultsAnalysis.failureAnalysis && (
+                <Box px="3" py="2.5" borderRadius="lg" bg="rgba(239,68,68,0.04)" border="1px solid rgba(239,68,68,0.12)">
+                  <Text fontSize="10px" fontWeight="600" color="#ef4444" textTransform="uppercase" letterSpacing="0.05em" mb="1">Failure Analysis</Text>
+                  <Text fontSize="11px" color={t.textSecondary} lineHeight="1.5">{pr.testResultsAnalysis.failureAnalysis}</Text>
+                </Box>
+              )}
+              {pr.testResultsAnalysis.rootCauseGuess && (
+                <Box px="3" py="2.5" borderRadius="lg" bg="rgba(245,158,11,0.04)" border="1px solid rgba(245,158,11,0.12)">
+                  <Text fontSize="10px" fontWeight="600" color="#f59e0b" textTransform="uppercase" letterSpacing="0.05em" mb="1">Probable Root Cause</Text>
+                  <Text fontSize="11px" color={t.textSecondary} lineHeight="1.5">{pr.testResultsAnalysis.rootCauseGuess}</Text>
+                </Box>
+              )}
+            </Grid>
+
+            {pr.testResultsAnalysis.actionItems?.length > 0 && (
+              <Box mt="3">
+                <Text fontSize="10px" fontWeight="600" color={t.textFaint} textTransform="uppercase" letterSpacing="0.05em" mb="2">Action Items</Text>
+                <Flex direction="column" gap="1.5">
+                  {pr.testResultsAnalysis.actionItems.map((item, idx) => (
+                    <Flex key={idx} align="flex-start" gap="2" px="3" py="2" borderRadius="lg" bg={t.bgInput} border={`1px solid ${t.border}`}>
+                      <Text fontSize="11px" color="#3b82f6" fontWeight="700" mt="0.5">{idx + 1}.</Text>
+                      <Text fontSize="12px" color={t.textSecondary} lineHeight="1.5">{item}</Text>
+                    </Flex>
+                  ))}
+                </Flex>
+              </Box>
+            )}
+
+            {pr.testResultsAnalysis.coverageGaps?.length > 0 && (
+              <Box mt="3">
+                <Text fontSize="10px" fontWeight="600" color={t.textFaint} textTransform="uppercase" letterSpacing="0.05em" mb="2">Coverage Gaps</Text>
+                <Flex gap="2" flexWrap="wrap">
+                  {pr.testResultsAnalysis.coverageGaps.map((gap, idx) => (
+                    <Badge key={idx} bg="rgba(245,158,11,0.1)" color="#f59e0b" borderRadius="md" px="2" py="1" fontSize="10px" fontWeight="600" border="1px solid rgba(245,158,11,0.2)">{gap}</Badge>
+                  ))}
+                </Flex>
+              </Box>
+            )}
+          </GlassCard>
+        </Box>
+      )}
+
       {/* Pipeline view */}
       <Box mb="4">
         <PipelineView stages={pr.pipeline?.stages || []} />
@@ -809,3 +988,4 @@ export default function PRDetails() {
     </Box>
   );
 }
+

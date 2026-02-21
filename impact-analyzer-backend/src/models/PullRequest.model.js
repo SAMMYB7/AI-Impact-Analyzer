@@ -15,32 +15,31 @@ const pullRequestSchema = new mongoose.Schema(
     // Files & Modules
     filesChanged: [String],
     modulesImpacted: [String],
-    fileClassifications: { type: mongoose.Schema.Types.Mixed }, // { auth: 2, api: 3, ... }
+    fileClassifications: { type: mongoose.Schema.Types.Mixed },
 
-    // Risk Analysis
+    // AI Risk Analysis
     riskScore: { type: Number, default: 0 },
+    riskLevel: { type: String, enum: ["low", "medium", "high", "critical"], default: "medium" },
     confidence: { type: Number, default: 0 },
-    riskBreakdown: { type: mongoose.Schema.Types.Mixed }, // { fileRisk, volumeRisk, ... }
+    riskBreakdown: { type: mongoose.Schema.Types.Mixed },
+    aiReasoning: { type: String },
+    aiSuggestions: [String],
 
     // Status
     status: {
       type: String,
-      enum: [
-        "received",
-        "analyzing",
-        "predicted",
-        "tests_selected",
-        "running",
-        "completed",
-        "failed",
-      ],
+      enum: ["received", "analyzing", "predicted", "tests_selected", "running", "completed", "failed"],
       default: "received",
     },
 
-    // Test Selection
+    // AI Test Selection
     selectedTests: [String],
     skippedTests: [String],
     totalTests: { type: Number, default: 0 },
+    testSelectionStrategy: { type: String },
+    coverageEstimate: { type: Number, default: 0 },
+    testSelectionDetails: { type: mongoose.Schema.Types.Mixed }, // [{ name, type, reason }]
+    skippedTestDetails: { type: mongoose.Schema.Types.Mixed },   // [{ name, reason }]
 
     // Test Execution Results
     testExecution: {
@@ -69,6 +68,17 @@ const pullRequestSchema = new mongoose.Schema(
       ],
     },
 
+    // AI Test Results Analysis
+    testResultsAnalysis: {
+      summary: { type: String },
+      isSafeToMerge: { type: Boolean },
+      mergeConfidence: { type: Number },
+      failureAnalysis: { type: String },
+      rootCauseGuess: { type: String },
+      actionItems: [String],
+      coverageGaps: [String],
+    },
+
     // Timing & Meta
     analysisStartedAt: { type: Date },
     analysisCompletedAt: { type: Date },
@@ -76,9 +86,29 @@ const pullRequestSchema = new mongoose.Schema(
     estimatedTimeSaved: { type: Number, default: 0 },
     modelVersion: { type: String },
     analysisProvider: { type: String, default: "mock" },
+    testExecutionProvider: { type: String, default: "simulation" }, // codebuild | simulation
     autoAnalysisAt: { type: Date },
     pipelineRunId: { type: String },
     reportUrl: { type: String },
+
+    // AWS CodeBuild
+    codebuildInfo: {
+      buildId: { type: String },
+      buildArn: { type: String },
+      projectName: { type: String },
+      status: { type: String }, // SUCCEEDED, FAILED, IN_PROGRESS, etc.
+      duration: { type: Number },
+      timedOut: { type: Boolean, default: false },
+      phases: { type: mongoose.Schema.Types.Mixed },
+      logs: {
+        groupName: { type: String },
+        streamName: { type: String },
+        deepLink: { type: String },
+      },
+      artifacts: {
+        location: { type: String },
+      },
+    },
   },
   { timestamps: true },
 );

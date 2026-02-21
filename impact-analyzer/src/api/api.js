@@ -61,4 +61,11 @@ export async function getHealth() {
   return res.data;
 }
 
+// ── AI Model Health ────────────────────────────────────────
+
+export async function getAIHealth() {
+  const res = await API.get("/api/ai/health");
+  return res.data;
+}
+
 export default API;

@@ -9,7 +9,7 @@ const logSchema = new mongoose.Schema({
     default: "info",
   },
   message: { type: String, required: true },
-  source: { type: String, enum: ["analyzer", "pipeline", "sagemaker"], default: "analyzer" },
+  source: { type: String, enum: ["analyzer", "pipeline", "ollama"], default: "analyzer" },
   timestamp: { type: Date, default: Date.now },
 });
 

@@ -29,46 +29,30 @@ import StatCard from "../components/shared/StatCard";
 import StatusBadge from "../components/shared/StatusBadge";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { usePR } from "../context/usePRHook";
+import { getAIHealth } from "../api/api";
 
 export default function AIAnalysisPage() {
   const t = useThemeColors();
   const navigate = useNavigate();
   const { prs, refreshPRs, loading } = usePR();
 
+  const [aiHealth, setAiHealth] = useState(null);
+
   useEffect(() => {
     refreshPRs();
+    getAIHealth().then(setAiHealth).catch(() => setAiHealth({ available: false }));
   }, [refreshPRs]);
 
   const completed = prs.filter((p) => p.status === "completed");
   const failed = prs.filter((p) => p.status === "failed");
 
-  // Compute metrics
-  const avgRisk =
-    completed.length > 0
-      ? Math.round(
-          completed.reduce((s, p) => s + (p.riskScore || 0), 0) /
-            completed.length,
-        )
-      : 0;
-
-  const avgConfidence =
-    completed.length > 0
-      ? Math.round(
-          completed.reduce((s, p) => s + (p.confidence || 0), 0) /
-            completed.length,
-        )
-      : 0;
-
+  const avgRisk = completed.length > 0 ? Math.round(completed.reduce((s, p) => s + (p.riskScore || 0), 0) / completed.length) : 0;
+  const avgConfidence = completed.length > 0 ? Math.round(completed.reduce((s, p) => s + (p.confidence || 0), 0) / completed.length) : 0;
   const highRisk = completed.filter((p) => (p.riskScore || 0) >= 70).length;
-  const medRisk = completed.filter(
-    (p) => (p.riskScore || 0) >= 40 && (p.riskScore || 0) < 70,
-  ).length;
+  const medRisk = completed.filter((p) => (p.riskScore || 0) >= 40 && (p.riskScore || 0) < 70).length;
   const lowRisk = completed.filter((p) => (p.riskScore || 0) < 40).length;
-
-  const modelProvider =
-    completed.length > 0
-      ? completed[0].analysisProvider || "mock"
-      : "Not Available";
+  const aiPowered = completed.filter((p) => p.analysisProvider?.startsWith("ollama")).length;
+  const modelProvider = completed.length > 0 ? completed[0].analysisProvider || "mock" : "Not Available";
 
   if (loading && prs.length === 0) {
     return (
@@ -106,9 +90,14 @@ export default function AIAnalysisPage() {
               AI Impact Analysis
             </Text>
             <Text fontSize="13px" color={t.textMuted}>
-              Risk prediction insights powered by SageMaker / mock engine
+              Risk prediction powered by Ollama qwen3-coder-next
             </Text>
           </Box>
+          {aiHealth && (
+            <Badge bg={aiHealth.available ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)"} color={aiHealth.available ? "#10b981" : "#ef4444"} borderRadius="md" px="2.5" py="1" fontSize="11px" fontWeight="700" border={`1px solid ${aiHealth.available ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`}>
+              {aiHealth.available ? "● AI Online" : "○ AI Offline (using heuristics)"}
+            </Badge>
+          )}
         </Flex>
       </Box>
 
@@ -243,56 +232,23 @@ export default function AIAnalysisPage() {
           )}
         </GlassCard>
 
-        {/* Model Info */}
         <GlassCard>
-          <Text
-            fontSize="11px"
-            fontWeight="600"
-            textTransform="uppercase"
-            letterSpacing="0.08em"
-            color={t.textMuted}
-            mb="4"
-          >
-            <Icon boxSize="3" mr="1.5" verticalAlign="middle">
-              <LuCpu />
-            </Icon>
-            Model Information
+          <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="4">
+            <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuCpu /></Icon>
+            AI Model Information
           </Text>
           <Flex direction="column" gap="3">
             {[
               { label: "Provider", value: modelProvider },
-              {
-                label: "Model Version",
-                value:
-                  completed.length > 0
-                    ? completed[0].modelVersion || "N/A"
-                    : "N/A",
-              },
-              {
-                label: "Success Rate",
-                value:
-                  completed.length + failed.length > 0
-                    ? `${Math.round((completed.length / (completed.length + failed.length)) * 100)}%`
-                    : "N/A",
-              },
-              {
-                label: "Total Runs",
-                value: `${completed.length + failed.length}`,
-              },
-              { label: "Region", value: "us-east-1" },
+              { label: "Model", value: completed.length > 0 ? completed[0].modelVersion || "N/A" : "N/A" },
+              { label: "AI Analyses", value: `${aiPowered}/${completed.length}` },
+              { label: "Success Rate", value: completed.length + failed.length > 0 ? `${Math.round((completed.length / (completed.length + failed.length)) * 100)}%` : "N/A" },
+              { label: "Status", value: aiHealth?.available ? "Connected" : "Offline" },
+              { label: "Hosting", value: "EC2 (Ollama)" },
             ].map((item) => (
               <Flex key={item.label} justify="space-between" align="center">
-                <Text fontSize="12px" color={t.textMuted}>
-                  {item.label}
-                </Text>
-                <Text
-                  fontSize="12px"
-                  color={t.textPrimary}
-                  fontWeight="600"
-                  fontFamily="mono"
-                >
-                  {item.value}
-                </Text>
+                <Text fontSize="12px" color={t.textMuted}>{item.label}</Text>
+                <Text fontSize="12px" color={item.label === "Status" ? (aiHealth?.available ? "#10b981" : "#ef4444") : t.textPrimary} fontWeight="600" fontFamily="mono">{item.value}</Text>
               </Flex>
             ))}
           </Flex>
