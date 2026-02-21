@@ -55,11 +55,23 @@ export function AuthProvider({ children }) {
         return res.data;
     }, []);
 
-    // ── Register ─────────────────────────────────────────────
+    // ── Register Step 1: Request OTP ─────────────────────────
     const register = useCallback(async (name, email, password) => {
         const res = await API.post("/api/auth/register", { name, email, password });
+        return res.data; // Note: doesn't set token/user yet
+    }, []);
+
+    // ── Register Step 2: Verify OTP ──────────────────────────
+    const verifyOTP = useCallback(async (email, otp) => {
+        const res = await API.post("/api/auth/verify-otp", { email, otp });
         setToken(res.data.token);
         setUser(res.data.user);
+        return res.data;
+    }, []);
+
+    // ── Register Step 3: Resend OTP ──────────────────────────
+    const resendOTP = useCallback(async (email) => {
+        const res = await API.post("/api/auth/resend-otp", { email });
         return res.data;
     }, []);
 
@@ -84,6 +96,8 @@ export function AuthProvider({ children }) {
         isAuthenticated: !!user,
         login,
         register,
+        verifyOTP,
+        resendOTP,
         loginWithGithub,
         logout,
     };

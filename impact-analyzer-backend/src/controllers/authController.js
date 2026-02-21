@@ -1,13 +1,15 @@
 const User = require("../models/User.model");
+const OTP = require("../models/OTP.model");
 const axios = require("axios");
+const bcrypt = require("bcryptjs");
+const { generateOTP, sendOTPEmail } = require("../utils/emailService");
 
 // ── Helper: Send token response ──────────────────────────────
 function sendTokenResponse(user, statusCode, res) {
     const token = user.generateAuthToken();
 
-    // Update last login
-    user.lastLogin = Date.now();
-    user.save({ validateBeforeSave: false });
+    // Update last login without triggering pre-save hooks
+    User.updateOne({ _id: user._id }, { lastLogin: Date.now() }).catch(() => { });
 
     res.status(statusCode).json({
         success: true,
@@ -26,7 +28,7 @@ function sendTokenResponse(user, statusCode, res) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// POST /api/auth/register — Create account with email/password
+// POST /api/auth/register — Step 1: Send OTP to email
 // ══════════════════════════════════════════════════════════════
 exports.register = async (req, res) => {
     try {
@@ -45,24 +47,172 @@ exports.register = async (req, res) => {
                 .json({ error: "Password must be at least 6 characters" });
         }
 
-        // Check if user exists
+        // Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: "Email already registered" });
         }
 
-        // Create user
-        const user = await User.create({
-            name,
+        // Rate limit: prevent OTP spam (max 1 per 60 seconds)
+        const recentOTP = await OTP.findOne({ email });
+        if (recentOTP) {
+            const timeSince = Date.now() - recentOTP.createdAt.getTime();
+            if (timeSince < 60000) {
+                const waitSeconds = Math.ceil((60000 - timeSince) / 1000);
+                return res.status(429).json({
+                    error: `Please wait ${waitSeconds} seconds before requesting a new OTP`,
+                });
+            }
+            // Delete old OTP
+            await OTP.deleteMany({ email });
+        }
+
+        // Hash password now (so we don't store plain text in OTP doc)
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Generate OTP
+        const otp = generateOTP();
+
+        // Store OTP with user data
+        await OTP.create({
             email,
-            password,
+            otp,
+            userData: {
+                name,
+                password: hashedPassword,
+            },
+        });
+
+        // Send OTP email
+        await sendOTPEmail(email, otp, name);
+
+        res.status(200).json({
+            success: true,
+            message: "Verification code sent to your email",
+            email,
+        });
+    } catch (error) {
+        console.error("Register error:", error);
+        res.status(500).json({ error: "Failed to send verification email. Please try again." });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/auth/verify-otp — Step 2: Verify OTP & create user
+// ══════════════════════════════════════════════════════════════
+exports.verifyOTP = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res
+                .status(400)
+                .json({ error: "Please provide email and verification code" });
+        }
+
+        // Find OTP record
+        const otpRecord = await OTP.findOne({ email });
+        if (!otpRecord) {
+            return res.status(400).json({
+                error: "Verification code expired or not found. Please register again.",
+            });
+        }
+
+        // Check attempts (max 5)
+        if (otpRecord.attempts >= 5) {
+            await OTP.deleteMany({ email });
+            return res.status(429).json({
+                error: "Too many failed attempts. Please register again.",
+            });
+        }
+
+        // Verify OTP
+        if (otpRecord.otp !== otp) {
+            otpRecord.attempts += 1;
+            await otpRecord.save();
+            return res.status(400).json({
+                error: `Invalid verification code. ${5 - otpRecord.attempts} attempts remaining.`,
+            });
+        }
+
+        // Check if user was created meanwhile
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            await OTP.deleteMany({ email });
+            return res.status(400).json({ error: "Email already registered" });
+        }
+
+        // Create user with stored data (password already hashed)
+        const user = new User({
+            name: otpRecord.userData.name,
+            email,
+            password: otpRecord.userData.password,
             authProvider: "local",
         });
 
+        // Save without triggering pre-save hook (password already hashed)
+        await user.save({ validateBeforeSave: false });
+
+        // Clean up OTP
+        await OTP.deleteMany({ email });
+
         sendTokenResponse(user, 201, res);
     } catch (error) {
-        console.error("Register error:", error);
-        res.status(500).json({ error: "Registration failed" });
+        console.error("Verify OTP error:", error);
+        res.status(500).json({ error: "Verification failed" });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/auth/resend-otp — Resend OTP
+// ══════════════════════════════════════════════════════════════
+exports.resendOTP = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: "Email is required" });
+        }
+
+        // Find existing OTP record
+        const otpRecord = await OTP.findOne({ email });
+        if (!otpRecord) {
+            return res.status(400).json({
+                error: "No pending registration found. Please register again.",
+            });
+        }
+
+        // Rate limit: 60 seconds between resends
+        const timeSince = Date.now() - otpRecord.createdAt.getTime();
+        if (timeSince < 60000) {
+            const waitSeconds = Math.ceil((60000 - timeSince) / 1000);
+            return res.status(429).json({
+                error: `Please wait ${waitSeconds} seconds before requesting a new code`,
+            });
+        }
+
+        // Generate new OTP and update record
+        const newOTP = generateOTP();
+
+        await OTP.deleteMany({ email });
+        await OTP.create({
+            email,
+            otp: newOTP,
+            userData: otpRecord.userData,
+            attempts: 0,
+        });
+
+        // Send new OTP
+        await sendOTPEmail(email, newOTP, otpRecord.userData.name);
+
+        res.status(200).json({
+            success: true,
+            message: "New verification code sent to your email",
+        });
+    } catch (error) {
+        console.error("Resend OTP error:", error);
+        res.status(500).json({ error: "Failed to resend verification code" });
     }
 };
 
@@ -193,15 +343,21 @@ exports.githubAuth = async (req, res) => {
         });
 
         if (user) {
-            // Update existing user with latest GitHub info
-            user.githubId = String(githubUser.id);
-            user.githubUsername = githubUser.login;
-            user.githubAccessToken = access_token;
-            user.avatar = githubUser.avatar_url || user.avatar;
-            if (!user.name || user.name === email) {
-                user.name = githubUser.name || githubUser.login;
-            }
-            await user.save({ validateBeforeSave: false });
+            // Update existing user with latest GitHub info (bypass pre-save hooks)
+            await User.updateOne(
+                { _id: user._id },
+                {
+                    githubId: String(githubUser.id),
+                    githubUsername: githubUser.login,
+                    githubAccessToken: access_token,
+                    avatar: githubUser.avatar_url || user.avatar,
+                    ...((!user.name || user.name === email) && {
+                        name: githubUser.name || githubUser.login,
+                    }),
+                }
+            );
+            // Re-fetch updated user
+            user = await User.findById(user._id);
         } else {
             // Create new user from GitHub profile
             user = await User.create({
