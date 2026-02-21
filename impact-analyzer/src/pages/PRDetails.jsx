@@ -657,48 +657,139 @@ export default function PRDetails() {
         </Box>
       )}
 
-      {/* Selected tests */}
-      {pr.selectedTests?.length > 0 && (
+      {/* Risk Breakdown */}
+      {pr.riskBreakdown && pr.status === "completed" && (
         <Box mb="4">
           <GlassCard>
-            <Text
-              fontSize="11px"
-              fontWeight="600"
-              textTransform="uppercase"
-              letterSpacing="0.08em"
-              color={t.textMuted}
-              mb="3"
-            >
-              <Icon boxSize="3" mr="1.5" verticalAlign="middle">
-                <LuTestTubeDiagonal />
-              </Icon>
+            <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="3">
+              <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuShieldAlert /></Icon>
+              Risk Analysis Breakdown
+            </Text>
+            <Grid templateColumns={{ base: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(5, 1fr)" }} gap="2">
+              {[
+                { label: "File Risk", value: pr.riskBreakdown.fileRisk, color: "#ef4444" },
+                { label: "Volume", value: pr.riskBreakdown.volumeRisk, color: "#f59e0b" },
+                { label: "Spread", value: pr.riskBreakdown.spreadRisk, color: "#8b5cf6" },
+                { label: "Critical", value: pr.riskBreakdown.criticalRisk, color: "#ec4899" },
+                { label: "Commit", value: pr.riskBreakdown.commitRisk, color: "#3b82f6" },
+              ].filter(item => item.value !== undefined).map((item) => (
+                <Box key={item.label} p="3" borderRadius="lg" bg={t.bgHover} border={`1px solid ${t.border}`}>
+                  <Text fontSize="10px" color={t.textFaint} fontWeight="600" mb="1">{item.label}</Text>
+                  <Text fontSize="16px" fontWeight="800" fontFamily="mono" color={item.color}>{item.value}%</Text>
+                  <Box h="3px" borderRadius="full" bg={t.bgInput} mt="1.5" overflow="hidden">
+                    <Box h="100%" borderRadius="full" bg={item.color} w={`${item.value}%`} transition="width 0.6s ease" />
+                  </Box>
+                </Box>
+              ))}
+            </Grid>
+          </GlassCard>
+        </Box>
+      )}
+
+      {/* Test Execution Results */}
+      {pr.testExecution?.results?.length > 0 && (
+        <Box mb="4">
+          <GlassCard>
+            <Flex justify="space-between" align="center" mb="3" flexWrap="wrap" gap="2">
+              <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted}>
+                <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuTestTubeDiagonal /></Icon>
+                Test Execution Results
+              </Text>
+              <Flex gap="3" align="center">
+                <Flex align="center" gap="1.5">
+                  <Box w="8px" h="8px" borderRadius="full" bg="#10b981" />
+                  <Text fontSize="11px" color={t.textSecondary} fontWeight="600">{pr.testExecution.passed} passed</Text>
+                </Flex>
+                {pr.testExecution.failed > 0 && (
+                  <Flex align="center" gap="1.5">
+                    <Box w="8px" h="8px" borderRadius="full" bg="#ef4444" />
+                    <Text fontSize="11px" color={t.textSecondary} fontWeight="600">{pr.testExecution.failed} failed</Text>
+                  </Flex>
+                )}
+                <Badge bg={pr.testExecution.passRate >= 80 ? "rgba(16,185,129,0.1)" : pr.testExecution.passRate >= 50 ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)"} color={pr.testExecution.passRate >= 80 ? "#10b981" : pr.testExecution.passRate >= 50 ? "#f59e0b" : "#ef4444"} borderRadius="md" px="2" py="0.5" fontSize="11px" fontWeight="700" fontFamily="mono">
+                  {pr.testExecution.passRate}% pass rate
+                </Badge>
+              </Flex>
+            </Flex>
+
+            {/* Pass rate bar */}
+            <Box h="6px" borderRadius="full" bg={t.bgInput} overflow="hidden" mb="4">
+              <Flex h="100%">
+                <Box h="100%" bg="#10b981" w={`${pr.testExecution.passRate}%`} transition="width 0.8s ease" />
+                {pr.testExecution.failed > 0 && (
+                  <Box h="100%" bg="#ef4444" w={`${100 - pr.testExecution.passRate}%`} transition="width 0.8s ease" />
+                )}
+              </Flex>
+            </Box>
+
+            {/* Individual test results */}
+            <Flex direction="column" gap="1.5" maxH="400px" overflowY="auto" css={{ "&::-webkit-scrollbar": { width: "3px" }, "&::-webkit-scrollbar-thumb": { background: "rgba(255,255,255,0.06)", borderRadius: "2px" } }}>
+              {pr.testExecution.results.map((test) => (
+                <Flex
+                  key={test.name}
+                  align="center"
+                  gap="2"
+                  py="2"
+                  px="3"
+                  borderRadius="lg"
+                  bg={test.status === "failed" ? "rgba(239,68,68,0.04)" : "transparent"}
+                  border={`1px solid ${test.status === "failed" ? "rgba(239,68,68,0.15)" : t.border}`}
+                  _hover={{ bg: t.bgHover }}
+                >
+                  <Box w="7px" h="7px" borderRadius="full" bg={test.status === "passed" ? "#10b981" : "#ef4444"} flexShrink="0" />
+                  <Text fontSize="11px" color={t.textPrimary} fontFamily="mono" fontWeight="500" flex="1" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    {test.name}
+                  </Text>
+                  <Flex gap="2" align="center" flexShrink="0">
+                    {test.assertions && (
+                      <Text fontSize="10px" color={t.textFaint} fontFamily="mono">
+                        {test.assertions.passed}/{test.assertions.total}
+                      </Text>
+                    )}
+                    <Text fontSize="10px" color={t.textFaint} fontFamily="mono">{test.duration}ms</Text>
+                    <Badge bg={test.status === "passed" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)"} color={test.status === "passed" ? "#10b981" : "#ef4444"} borderRadius="md" px="1.5" py="0.5" fontSize="9px" fontWeight="700" textTransform="uppercase">
+                      {test.status}
+                    </Badge>
+                  </Flex>
+                </Flex>
+              ))}
+            </Flex>
+
+            {/* Failed test details */}
+            {pr.testExecution.results.filter(t => t.status === "failed").length > 0 && (
+              <Box mt="4" pt="3" borderTop={`1px solid ${t.border}`}>
+                <Text fontSize="10px" fontWeight="600" color="#ef4444" textTransform="uppercase" letterSpacing="0.05em" mb="2">Failed Test Details</Text>
+                <Flex direction="column" gap="2">
+                  {pr.testExecution.results.filter(r => r.status === "failed").map((test) => (
+                    <Box key={`err-${test.name}`} px="3" py="2" borderRadius="lg" bg="rgba(239,68,68,0.05)" border="1px solid rgba(239,68,68,0.12)">
+                      <Text fontSize="11px" color={t.textPrimary} fontFamily="mono" fontWeight="600">{test.name}</Text>
+                      {test.error && (
+                        <Text fontSize="11px" color="#ef4444" fontFamily="mono" mt="1">
+                          {test.error.type}: {test.error.message}
+                        </Text>
+                      )}
+                    </Box>
+                  ))}
+                </Flex>
+              </Box>
+            )}
+          </GlassCard>
+        </Box>
+      )}
+
+      {/* Selected & Skipped Tests Summary (fallback if no execution data) */}
+      {!pr.testExecution?.results?.length && pr.selectedTests?.length > 0 && (
+        <Box mb="4">
+          <GlassCard>
+            <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="3">
+              <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuTestTubeDiagonal /></Icon>
               Selected Tests ({pr.selectedTests.length})
             </Text>
             <Flex direction="column" gap="1">
               {pr.selectedTests.map((test) => (
-                <Flex
-                  key={test}
-                  align="center"
-                  gap="2"
-                  py="1"
-                  px="2"
-                  borderRadius="md"
-                  _hover={{ bg: t.bgHover }}
-                >
-                  <Box
-                    w="6px"
-                    h="6px"
-                    borderRadius="full"
-                    bg="#10b981"
-                    flexShrink="0"
-                  />
-                  <Text
-                    fontSize="12px"
-                    color={t.textSecondary}
-                    fontFamily="mono"
-                  >
-                    {test}
-                  </Text>
+                <Flex key={test} align="center" gap="2" py="1" px="2" borderRadius="md" _hover={{ bg: t.bgHover }}>
+                  <Box w="6px" h="6px" borderRadius="full" bg="#10b981" flexShrink="0" />
+                  <Text fontSize="12px" color={t.textSecondary} fontFamily="mono">{test}</Text>
                 </Flex>
               ))}
             </Flex>
