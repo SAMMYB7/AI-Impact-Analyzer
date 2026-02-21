@@ -11,6 +11,7 @@ import {
   HStack,
   VStack,
   Separator,
+  Image,
 } from "@chakra-ui/react";
 import {
   LuBell,
@@ -28,12 +29,15 @@ import {
   LuInfo,
   LuCircleX,
   LuX,
+  LuLogOut,
+  LuUser,
 } from "react-icons/lu";
 import { useSimulation } from "../../hooks/useSimulationHook";
 import { useThemeColors } from "../../hooks/useThemeColors";
 import { useColorMode } from "../ui/color-mode";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 const PAGE_TITLES = {
   "/dashboard": "Dashboard Overview",
@@ -88,8 +92,10 @@ export default function TopNavbar() {
     phase,
   } = useSimulation();
   const location = useLocation();
+  const navigate = useNavigate();
   const t = useThemeColors();
   const { colorMode, toggleColorMode } = useColorMode();
+  const { user, logout } = useAuth();
 
   // Live clock
   const [now, setNow] = useState(new Date());
@@ -134,6 +140,34 @@ export default function TopNavbar() {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const pageTitle = PAGE_TITLES[location.pathname] || "Dashboard";
   const isDark = colorMode === "dark";
+
+  // User dropdown
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <Flex
@@ -481,42 +515,178 @@ export default function TopNavbar() {
           </Icon>
         </Flex>
 
-        {/* User Avatar */}
-        <Flex align="center" gap="2" cursor="pointer" _hover={{ opacity: 0.8 }}>
+        {/* User Avatar & Dropdown */}
+        <Box position="relative" ref={userMenuRef}>
           <Flex
-            w="34px"
-            h="34px"
-            borderRadius="full"
-            bg="linear-gradient(135deg, #8b5cf6, #14b8a6)"
             align="center"
-            justify="center"
-            boxShadow="0 0 12px rgba(139, 92, 246, 0.25)"
+            gap="2"
+            cursor="pointer"
+            _hover={{ opacity: 0.8 }}
+            onClick={() => setShowUserMenu(!showUserMenu)}
           >
-            <Text fontSize="xs" fontWeight="700" color="white">
-              AK
-            </Text>
-          </Flex>
-          <Box display={{ base: "none", lg: "block" }}>
-            <Text
-              fontSize="xs"
-              fontWeight="600"
-              color={t.textPrimary}
-              lineHeight="1.2"
+            {user?.avatar ? (
+              <Image
+                src={user.avatar}
+                alt={user.name}
+                w="34px"
+                h="34px"
+                borderRadius="full"
+                objectFit="cover"
+                border={`2px solid ${t.border}`}
+              />
+            ) : (
+              <Flex
+                w="34px"
+                h="34px"
+                borderRadius="full"
+                bg="linear-gradient(135deg, #8b5cf6, #14b8a6)"
+                align="center"
+                justify="center"
+                boxShadow="0 0 12px rgba(139, 92, 246, 0.25)"
+              >
+                <Text fontSize="xs" fontWeight="700" color="white">
+                  {getInitials(user?.name)}
+                </Text>
+              </Flex>
+            )}
+            <Box display={{ base: "none", lg: "block" }}>
+              <Text
+                fontSize="xs"
+                fontWeight="600"
+                color={t.textPrimary}
+                lineHeight="1.2"
+              >
+                {user?.name || "User"}
+              </Text>
+              <Text fontSize="10px" color={t.textMuted}>
+                {user?.role === "admin" ? "Admin" : "Member"}
+              </Text>
+            </Box>
+            <Icon
+              color={t.textFaint}
+              boxSize="3"
+              display={{ base: "none", lg: "block" }}
             >
-              Admin
-            </Text>
-            <Text fontSize="10px" color={t.textMuted}>
-              Platform Owner
-            </Text>
-          </Box>
-          <Icon
-            color={t.textFaint}
-            boxSize="3"
-            display={{ base: "none", lg: "block" }}
-          >
-            <LuChevronDown />
-          </Icon>
-        </Flex>
+              <LuChevronDown />
+            </Icon>
+          </Flex>
+
+          {/* User Dropdown Menu */}
+          {showUserMenu && (
+            <Box
+              position="absolute"
+              top="48px"
+              right="0"
+              w="240px"
+              bg={isDark ? "rgba(10, 14, 26, 0.95)" : "rgba(255, 255, 255, 0.98)"}
+              border={`1px solid ${t.border}`}
+              borderRadius="xl"
+              boxShadow={
+                isDark
+                  ? "0 16px 48px rgba(0,0,0,0.5)"
+                  : "0 16px 48px rgba(0,0,0,0.12)"
+              }
+              overflow="hidden"
+              zIndex="100"
+              animation="slideDown 0.2s ease"
+            >
+              {/* User Info */}
+              <Flex
+                gap="3"
+                px="4"
+                py="3.5"
+                borderBottom={`1px solid ${t.border}`}
+              >
+                {user?.avatar ? (
+                  <Image
+                    src={user.avatar}
+                    alt={user.name}
+                    w="36px"
+                    h="36px"
+                    borderRadius="full"
+                    objectFit="cover"
+                  />
+                ) : (
+                  <Flex
+                    w="36px"
+                    h="36px"
+                    borderRadius="full"
+                    bg="linear-gradient(135deg, #8b5cf6, #14b8a6)"
+                    align="center"
+                    justify="center"
+                    flexShrink="0"
+                  >
+                    <Text fontSize="xs" fontWeight="700" color="white">
+                      {getInitials(user?.name)}
+                    </Text>
+                  </Flex>
+                )}
+                <Box overflow="hidden">
+                  <Text
+                    fontSize="sm"
+                    fontWeight="600"
+                    color={t.textPrimary}
+                    lineClamp="1"
+                  >
+                    {user?.name}
+                  </Text>
+                  <Text
+                    fontSize="xs"
+                    color={t.textMuted}
+                    lineClamp="1"
+                  >
+                    {user?.email}
+                  </Text>
+                </Box>
+              </Flex>
+
+              {/* Menu Items */}
+              <VStack gap="0" align="stretch" py="1">
+                <Flex
+                  align="center"
+                  gap="2.5"
+                  px="4"
+                  py="2.5"
+                  cursor="pointer"
+                  _hover={{ bg: t.bgHover }}
+                  transition="background 0.15s"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    navigate("/settings");
+                  }}
+                >
+                  <Icon color={t.textMuted} boxSize="4">
+                    <LuUser />
+                  </Icon>
+                  <Text fontSize="sm" color={t.textSecondary}>
+                    Profile & Settings
+                  </Text>
+                </Flex>
+              </VStack>
+
+              {/* Logout */}
+              <Box borderTop={`1px solid ${t.border}`} py="1">
+                <Flex
+                  align="center"
+                  gap="2.5"
+                  px="4"
+                  py="2.5"
+                  cursor="pointer"
+                  _hover={{ bg: "rgba(239, 68, 68, 0.06)" }}
+                  transition="background 0.15s"
+                  onClick={handleLogout}
+                >
+                  <Icon color="#ef4444" boxSize="4">
+                    <LuLogOut />
+                  </Icon>
+                  <Text fontSize="sm" color="#ef4444" fontWeight="500">
+                    Sign out
+                  </Text>
+                </Flex>
+              </Box>
+            </Box>
+          )}
+        </Box>
       </HStack>
     </Flex>
   );
