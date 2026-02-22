@@ -70,6 +70,16 @@ async function pollBuilds() {
             };
         }
 
+        pr.testExecution = {
+            passed: mockTestResults.filter(t => t.status === "passed").length,
+            failed: mockTestResults.filter(t => t.status === "failed").length,
+            passRate: mockTestResults.length > 0 ? Math.round((mockTestResults.filter(t => t.status === "passed").length / mockTestResults.length) * 100) : 0,
+            results: mockTestResults,
+            totalDuration: pr.codebuildInfo?.duration || 0
+        };
+
+        pr.testExecutionProvider = "codebuild";
+
         await pipelineService.updateStage(pr.prId, "test_execution", "completed");
 
         // Generate and upload report to S3
