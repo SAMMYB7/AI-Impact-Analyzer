@@ -566,14 +566,31 @@ export default function Dashboard() {
                     </Flex>
                     <Flex align="center" gap="3" flexShrink="0">
                       {pr.status === "completed" && (
-                        <Text
-                          fontSize="12px"
-                          fontWeight="700"
-                          fontFamily="mono"
-                          color={rc}
-                        >
-                          {pr.riskScore}%
-                        </Text>
+                        <>
+                          {pr.impactLevel && (
+                            <Badge
+                              bg={pr.impactLevel === "high" ? "rgba(239,68,68,0.1)" : pr.impactLevel === "medium" ? "rgba(245,158,11,0.1)" : "rgba(16,185,129,0.1)"}
+                              color={pr.impactLevel === "high" ? "#ef4444" : pr.impactLevel === "medium" ? "#f59e0b" : "#10b981"}
+                              borderRadius="md"
+                              px="1.5"
+                              py="0.5"
+                              fontSize="9px"
+                              fontWeight="700"
+                              textTransform="uppercase"
+                              border={`1px solid ${pr.impactLevel === "high" ? "rgba(239,68,68,0.2)" : pr.impactLevel === "medium" ? "rgba(245,158,11,0.2)" : "rgba(16,185,129,0.2)"}`}
+                            >
+                              {pr.impactLevel}
+                            </Badge>
+                          )}
+                          <Text
+                            fontSize="12px"
+                            fontWeight="700"
+                            fontFamily="mono"
+                            color={rc}
+                          >
+                            {pr.riskScore}%
+                          </Text>
+                        </>
                       )}
                       <StatusBadge status={pr.status} />
                     </Flex>

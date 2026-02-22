@@ -40,6 +40,18 @@ export async function getAllPRs() {
   return res.data;
 }
 
+// Delete a PR (DELETE /api/pr/:id)
+export async function deletePR(prId) {
+  const res = await API.delete(`/api/pr/${prId}`);
+  return res.data;
+}
+
+// Update a PR (PUT /api/pr/:id)
+export async function updatePR(prId, updates) {
+  const res = await API.put(`/api/pr/${prId}`, updates);
+  return res.data;
+}
+
 // ── Logs Endpoint ────────────────────────────────────────────
 
 // Fetch logs for a PR (GET /api/logs/:prId)

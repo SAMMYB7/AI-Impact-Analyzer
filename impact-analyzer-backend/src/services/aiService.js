@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// AI SERVICE — Ollama qwen3-coder-next on EC2
+// AI SERVICE — Ollama llama3.1:8b on EC2
 // Full AI integration: Risk Analysis + Test Selection + Results
 // ═══════════════════════════════════════════════════════════════
 
@@ -8,7 +8,7 @@ const axios = require("axios");
 // Ollama API endpoint on EC2
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen3-coder-next";
-const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || "30000", 10);
+const OLLAMA_TIMEOUT = parseInt(process.env.OLLAMA_TIMEOUT || "180000", 10);
 
 // ──────────────────────────────────────────────────────────────
 // CORE: Send a prompt to Ollama and get a JSON response

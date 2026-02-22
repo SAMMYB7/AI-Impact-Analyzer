@@ -6,6 +6,8 @@ const {
   analyzePR,
   getRecentPRs,
   getPRStatus,
+  deletePR,
+  updatePR,
 } = require("../controllers/prController");
 
 const { protect } = require("../middleware/auth");
@@ -24,5 +26,11 @@ router.get("/:id", protect, getPRById);
 
 // POST /api/pr/analyze/:id — run analysis on a PR
 router.post("/analyze/:id", protect, analyzePR);
+
+// PUT /api/pr/:id — update editable fields of a PR
+router.put("/:id", protect, updatePR);
+
+// DELETE /api/pr/:id — delete a PR and associated data
+router.delete("/:id", protect, deletePR);
 
 module.exports = router;

@@ -58,7 +58,7 @@ async function updateStage(prId, stageName, status) {
   const pipeline = await PipelineRun.findOneAndUpdate(
     { prId, "stages.name": stageName },
     { $set: update },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   return pipeline;

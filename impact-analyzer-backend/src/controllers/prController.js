@@ -1,5 +1,6 @@
 const PullRequest = require("../models/PullRequest.model");
 const PipelineRun = require("../models/PipelineRun.model");
+const Log = require("../models/Log.model");
 const analyzerService = require("../services/analyzerService");
 const { cancelAutoAnalysis } = require("../services/timerService");
 
@@ -113,4 +114,86 @@ async function getPRStatus(req, res) {
   }
 }
 
-module.exports = { getAllPRs, getPRById, analyzePR, getRecentPRs, getPRStatus };
+// DELETE /api/pr/:id
+// Delete a PR and its associated pipeline + logs
+async function deletePR(req, res) {
+  try {
+    const prId = req.params.id;
+
+    // Verify the user owns this PR
+    const pr = await PullRequest.findOne({ prId, userId: req.user._id });
+    if (!pr) {
+      return res.status(404).json({ error: "PR not found or unauthorized" });
+    }
+
+    // Don't allow deleting PRs that are currently analyzing
+    if (pr.status === "analyzing") {
+      return res.status(409).json({ error: "Cannot delete a PR that is currently being analyzed" });
+    }
+
+    // Cancel any pending auto-analysis timer
+    cancelAutoAnalysis(prId);
+
+    // Delete associated pipeline run
+    await PipelineRun.deleteMany({ prId });
+
+    // Delete associated logs
+    await Log.deleteMany({ prId });
+
+    // Delete the PR itself
+    await PullRequest.deleteOne({ prId, userId: req.user._id });
+
+    console.log(`🗑️ PR ${prId} deleted by user ${req.user._id}`);
+
+    res.json({ message: "PR deleted successfully", prId });
+  } catch (error) {
+    console.error("❌ Delete PR error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+// PUT /api/pr/:id
+// Update editable fields of a PR
+async function updatePR(req, res) {
+  try {
+    const prId = req.params.id;
+
+    // Verify the user owns this PR
+    const pr = await PullRequest.findOne({ prId, userId: req.user._id });
+    if (!pr) {
+      return res.status(404).json({ error: "PR not found or unauthorized" });
+    }
+
+    // Don't allow editing PRs that are currently analyzing
+    if (pr.status === "analyzing") {
+      return res.status(409).json({ error: "Cannot edit a PR that is currently being analyzed" });
+    }
+
+    // Only allow updating certain fields
+    const allowedFields = ["author", "branch", "commitMessage", "repo"];
+    const updates = {};
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined && req.body[field] !== "") {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    // Apply updates
+    Object.assign(pr, updates);
+    await pr.save();
+
+    console.log(`✏️ PR ${prId} updated:`, Object.keys(updates).join(", "));
+
+    res.json({ message: "PR updated successfully", pr });
+  } catch (error) {
+    console.error("❌ Update PR error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+module.exports = { getAllPRs, getPRById, analyzePR, getRecentPRs, getPRStatus, deletePR, updatePR };

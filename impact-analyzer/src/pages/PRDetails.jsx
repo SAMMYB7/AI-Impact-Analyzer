@@ -26,12 +26,16 @@ import {
   LuClock,
   LuPackage,
   LuTimer,
+  LuPencil,
+  LuTrash2,
 } from "react-icons/lu";
 import GlassCard from "../components/shared/GlassCard";
 import StatusBadge from "../components/shared/StatusBadge";
 import StatCard from "../components/shared/StatCard";
 import PipelineView from "../components/PipelineView";
 import LogViewer from "../components/LogViewer";
+import EditPRModal from "../components/EditPRModal";
+import DeletePRModal from "../components/DeletePRModal";
 import { useThemeColors } from "../hooks/useThemeColors";
 import { getPR, analyzePR, getLogs } from "../api/api";
 import { toaster } from "../components/ui/toaster";
@@ -46,6 +50,8 @@ export default function PRDetails() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [countdown, setCountdown] = useState(null); // seconds remaining
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const pollRef = useRef(null);
   const countdownRef = useRef(null);
 
@@ -244,25 +250,68 @@ export default function PRDetails() {
             {pr.title || `${pr.branch} → main`}
           </Text>
         </Box>
-        <Button
-          size="sm"
-          bg="linear-gradient(135deg, #3b82f6, #8b5cf6)"
-          color="white"
-          borderRadius="lg"
-          fontSize="12px"
-          fontWeight="600"
-          px="5"
-          _hover={{ opacity: 0.9 }}
-          onClick={handleAnalyze}
-          disabled={
-            analyzing || pr.status === "analyzing" || pr.status === "completed"
-          }
-        >
-          <Icon mr="1.5" boxSize="3.5">
-            <LuPlay />
-          </Icon>
-          {analyzing ? "Analyzing..." : "Run Analysis"}
-        </Button>
+        <Flex gap="2" align="center" flexShrink="0">
+          {/* Edit Button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            borderRadius="lg"
+            fontSize="12px"
+            fontWeight="600"
+            px="3"
+            color={t.textMuted}
+            border={`1px solid ${t.border}`}
+            _hover={{ bg: t.bgHover, borderColor: t.borderAccent }}
+            onClick={() => setEditModalOpen(true)}
+            disabled={pr.status === "analyzing"}
+            transition="all 0.15s"
+          >
+            <Icon mr="1.5" boxSize="3.5">
+              <LuPencil />
+            </Icon>
+            Edit
+          </Button>
+          {/* Delete Button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            borderRadius="lg"
+            fontSize="12px"
+            fontWeight="600"
+            px="3"
+            color="#ef4444"
+            border="1px solid rgba(239,68,68,0.2)"
+            _hover={{ bg: "rgba(239,68,68,0.06)", borderColor: "rgba(239,68,68,0.4)" }}
+            onClick={() => setDeleteModalOpen(true)}
+            disabled={pr.status === "analyzing"}
+            transition="all 0.15s"
+          >
+            <Icon mr="1.5" boxSize="3.5">
+              <LuTrash2 />
+            </Icon>
+            Delete
+          </Button>
+          {/* Analyze Button */}
+          <Button
+            size="sm"
+            bg="linear-gradient(135deg, #3b82f6, #8b5cf6)"
+            color="white"
+            borderRadius="lg"
+            fontSize="12px"
+            fontWeight="600"
+            px="5"
+            _hover={{ opacity: 0.9 }}
+            onClick={handleAnalyze}
+            disabled={
+              analyzing || pr.status === "analyzing" || pr.status === "completed"
+            }
+          >
+            <Icon mr="1.5" boxSize="3.5">
+              <LuPlay />
+            </Icon>
+            {analyzing ? "Analyzing..." : "Run Analysis"}
+          </Button>
+        </Flex>
       </Flex>
 
       {/* Auto-analysis countdown banner */}
@@ -657,8 +706,8 @@ export default function PRDetails() {
         </Box>
       )}
 
-      {/* Risk Breakdown */}
-      {pr.riskBreakdown && pr.status === "completed" && (
+      {/* Risk Breakdown (Heuristic Engine) */}
+      {pr.riskBreakdown?.fileRisk !== undefined && pr.status === "completed" && (
         <Box mb="4">
           <GlassCard>
             <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="3">
@@ -687,18 +736,50 @@ export default function PRDetails() {
       )}
 
       {/* AI Insights (from Ollama) */}
-      {pr.status === "completed" && (pr.aiReasoning || pr.aiSuggestions?.length > 0) && (
+      {pr.status === "completed" && (pr.aiReasoning || pr.aiSuggestions?.length > 0 || pr.aiSummary || pr.aiReason) && (
         <Box mb="4">
           <GlassCard>
-            <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted} mb="3">
-              <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuShieldAlert /></Icon>
-              AI Analysis Insights
-              {pr.analysisProvider && (
-                <Badge ml="2" bg="rgba(139,92,246,0.1)" color="#a78bfa" borderRadius="md" px="2" py="0.5" fontSize="9px" fontWeight="600" verticalAlign="middle">{pr.analysisProvider}</Badge>
+            <Flex justify="space-between" align="center" mb="3" flexWrap="wrap" gap="2">
+              <Text fontSize="11px" fontWeight="600" textTransform="uppercase" letterSpacing="0.08em" color={t.textMuted}>
+                <Icon boxSize="3" mr="1.5" verticalAlign="middle"><LuShieldAlert /></Icon>
+                AI Analysis Insights
+                {pr.analysisProvider && (
+                  <Badge ml="2" bg="rgba(139,92,246,0.1)" color="#a78bfa" borderRadius="md" px="2" py="0.5" fontSize="9px" fontWeight="600" verticalAlign="middle">{pr.analysisProvider}</Badge>
+                )}
+              </Text>
+              {pr.impactLevel && (
+                <Badge
+                  bg={pr.impactLevel === "high" ? "rgba(239,68,68,0.1)" : pr.impactLevel === "medium" ? "rgba(245,158,11,0.1)" : "rgba(16,185,129,0.1)"}
+                  color={pr.impactLevel === "high" ? "#ef4444" : pr.impactLevel === "medium" ? "#f59e0b" : "#10b981"}
+                  borderRadius="md" px="2.5" py="1" fontSize="11px" fontWeight="700"
+                  border={`1px solid ${pr.impactLevel === "high" ? "rgba(239,68,68,0.2)" : pr.impactLevel === "medium" ? "rgba(245,158,11,0.2)" : "rgba(16,185,129,0.2)"}`}
+                  textTransform="uppercase"
+                >
+                  {pr.impactLevel} impact
+                </Badge>
               )}
-            </Text>
+            </Flex>
+
+            {/* AI Summary */}
+            {pr.aiSummary && (
+              <Box px="3" py="2.5" borderRadius="lg" bg="rgba(59,130,246,0.04)" border="1px solid rgba(59,130,246,0.12)" mb="3">
+                <Text fontSize="10px" fontWeight="600" color="#3b82f6" textTransform="uppercase" letterSpacing="0.05em" mb="1">Summary</Text>
+                <Text fontSize="12px" color={t.textPrimary} lineHeight="1.6">{pr.aiSummary}</Text>
+              </Box>
+            )}
+
+            {/* AI Reason */}
+            {pr.aiReason && (
+              <Box px="3" py="2.5" borderRadius="lg" bg="rgba(245,158,11,0.04)" border="1px solid rgba(245,158,11,0.12)" mb="3">
+                <Text fontSize="10px" fontWeight="600" color="#f59e0b" textTransform="uppercase" letterSpacing="0.05em" mb="1">Why Risky</Text>
+                <Text fontSize="12px" color={t.textPrimary} lineHeight="1.6">{pr.aiReason}</Text>
+              </Box>
+            )}
+
+            {/* AI Reasoning (detailed) */}
             {pr.aiReasoning && (
               <Box px="3" py="2.5" borderRadius="lg" bg={t.bgHover} border={`1px solid ${t.border}`} mb={pr.aiSuggestions?.length > 0 ? "3" : "0"}>
+                <Text fontSize="10px" fontWeight="600" color={t.textFaint} textTransform="uppercase" letterSpacing="0.05em" mb="1">Detailed Reasoning</Text>
                 <Text fontSize="12px" color={t.textPrimary} lineHeight="1.6">{pr.aiReasoning}</Text>
               </Box>
             )}
@@ -985,6 +1066,28 @@ export default function PRDetails() {
       <Box mb="4">
         <LogViewer logs={logs} />
       </Box>
+
+      {/* Edit Modal */}
+      <EditPRModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        pr={pr}
+        onUpdated={(updatedPR) => {
+          setPR(updatedPR);
+          setEditModalOpen(false);
+        }}
+      />
+
+      {/* Delete Modal */}
+      <DeletePRModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        pr={pr}
+        onDeleted={() => {
+          setDeleteModalOpen(false);
+          navigate("/pull-requests");
+        }}
+      />
     </Box>
   );
 }

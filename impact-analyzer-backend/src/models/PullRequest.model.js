@@ -21,9 +21,12 @@ const pullRequestSchema = new mongoose.Schema(
     // AI Risk Analysis
     riskScore: { type: Number, default: 0 },
     riskLevel: { type: String, enum: ["low", "medium", "high", "critical"], default: "medium" },
+    impactLevel: { type: String, enum: ["low", "medium", "high"], default: "medium" },
     confidence: { type: Number, default: 0 },
     riskBreakdown: { type: mongoose.Schema.Types.Mixed },
     aiReasoning: { type: String },
+    aiSummary: { type: String },
+    aiReason: { type: String },
     aiSuggestions: [String],
 
     // Status
@@ -41,6 +44,15 @@ const pullRequestSchema = new mongoose.Schema(
     coverageEstimate: { type: Number, default: 0 },
     testSelectionDetails: { type: mongoose.Schema.Types.Mixed }, // [{ name, type, reason }]
     skippedTestDetails: { type: mongoose.Schema.Types.Mixed },   // [{ name, reason }]
+
+    // Integration with Codebuild
+    buildId: { type: String },
+    buildStatus: { type: String },
+    buildCompleted: { type: Boolean, default: false },
+    testResults: {
+      passed: { type: Number, default: 0 },
+      failed: { type: Number, default: 0 }
+    },
 
     // Test Execution Results
     testExecution: {

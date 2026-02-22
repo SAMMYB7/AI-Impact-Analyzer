@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const routes = require("./routes");
+const { pollBuilds } = require("./services/buildPoller");
 
 const app = express();
 
@@ -32,6 +33,9 @@ app.get("/health", (req, res) => {
 
 // ── API Routes — everything under /api ───────────────────────
 app.use("/api", routes);
+
+// Poll builds every 15s
+setInterval(pollBuilds, 15000);
 
 // ── 404 Handler — catches unknown routes ─────────────────────
 app.use((req, res) => {

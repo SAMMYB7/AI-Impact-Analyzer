@@ -3,6 +3,7 @@ const TestMapping = require("../models/TestMapping.model");
 const pipelineService = require("./pipelineService");
 const logService = require("./logService");
 const { analyzeRiskWithAI, selectTestsWithAI, analyzeTestResultsWithAI, OLLAMA_MODEL } = require("./aiService");
+const { predictRiskImpact } = require("./ollamaService");
 const codebuildService = require("./codebuildService");
 const s3Service = require("./s3Service");
 
@@ -286,6 +287,10 @@ async function analyzePullRequest(prId) {
     let aiReasoning = "";
     let aiSuggestions = [];
     let riskLevel = "medium";
+    let impactLevel = "medium";
+    let aiSummary = "";
+    let aiReason = "";
+    let ollamaSuggestedTests = [];
 
     const aiContext = {
       filesChanged: pr.filesChanged,
@@ -296,9 +301,32 @@ async function analyzePullRequest(prId) {
       repo: pr.repo,
     };
 
-    await logService.addLog(prId, "risk_prediction", `Calling Ollama AI (${OLLAMA_MODEL}) for risk analysis...`);
+    // Call AI services sequentially for richer analysis (prevents overloading EC2 instance)
+    await logService.addLog(prId, "risk_prediction", `🤖 Calling Ollama AI (${OLLAMA_MODEL}) for risk analysis...`);
+
     const aiRiskResult = await analyzeRiskWithAI(aiContext);
 
+    await logService.addLog(prId, "risk_prediction", `🤖 Calling Ollama AI (${OLLAMA_MODEL}) for impact prediction...`);
+
+    const ollamaResult = await predictRiskImpact({
+      filesChanged: pr.filesChanged,
+      commitMessage: pr.commitMessage || "",
+    });
+
+    // Process predictRiskImpact result (structured impact data)
+    if (ollamaResult) {
+      impactLevel = ollamaResult.impact || "medium";
+      aiSummary = ollamaResult.summary || "";
+      aiReason = ollamaResult.reason || "";
+      ollamaSuggestedTests = ollamaResult.suggested_tests || [];
+
+      await logService.addLog(prId, "risk_prediction", `🧠 Ollama Impact: ${impactLevel} | Summary: ${aiSummary}`);
+      if (aiReason) {
+        await logService.addLog(prId, "risk_prediction", `🧠 Ollama Reason: ${aiReason}`);
+      }
+    }
+
+    // Process analyzeRiskWithAI result (detailed risk breakdown)
     if (aiRiskResult) {
       riskScore = aiRiskResult.riskScore;
       confidence = aiRiskResult.confidence;
@@ -317,6 +345,14 @@ async function analyzePullRequest(prId) {
       if (aiSuggestions.length > 0) {
         await logService.addLog(prId, "risk_prediction", `AI Suggestions: ${aiSuggestions.join(" | ")}`);
       }
+    } else if (ollamaResult && ollamaResult.risk !== undefined) {
+      // Fall back to ollamaService result if aiService failed
+      riskScore = Math.round(ollamaResult.risk);
+      confidence = Math.round(ollamaResult.confidence);
+      riskLevel = riskScore >= 76 ? "critical" : riskScore >= 51 ? "high" : riskScore >= 26 ? "medium" : "low";
+      provider = `ollama/${OLLAMA_MODEL}`;
+      riskBreakdown = { source: "ollama-predict", impact: impactLevel };
+      aiReasoning = aiReason;
     } else {
       await logService.addLog(prId, "risk_prediction", "Ollama unavailable — using heuristic engine");
       const hResult = computeHeuristicRisk(pr.filesChanged, pr.commitMessage);
@@ -328,9 +364,9 @@ async function analyzePullRequest(prId) {
     }
 
     riskScore = Math.min(100, Math.max(0, riskScore));
-    await logService.addLog(prId, "risk_prediction", `Risk: ${riskScore}% (${riskLevel}) | Confidence: ${confidence}% | Provider: ${provider}`);
+    await logService.addLog(prId, "risk_prediction", `🤖 AI risk: ${riskScore} (${impactLevel}) | Risk Level: ${riskLevel} | Confidence: ${confidence}% | Provider: ${provider}`);
 
-    if (riskBreakdown && riskBreakdown.source !== "ollama") {
+    if (riskBreakdown && riskBreakdown.source !== "ollama" && riskBreakdown.source !== "ollama-predict") {
       await logService.addLog(prId, "risk_prediction", `Breakdown — File: ${riskBreakdown.fileRisk}%, Volume: ${riskBreakdown.volumeRisk}%, Spread: ${riskBreakdown.spreadRisk}%, Critical: ${riskBreakdown.criticalRisk}%, Commit: ${riskBreakdown.commitRisk}%`);
     }
 
@@ -376,210 +412,66 @@ async function analyzePullRequest(prId) {
       testSelectionProvider = "heuristic-engine";
     }
 
-    const selectedTestNames = selectedTestDetails.map((t) => typeof t === "string" ? t : t.name);
+    // Ensure all tests from TestMapping are included
+    const mappedTestsFromDB = [];
+    dbMappings.forEach((m) => {
+      if (m.relatedTests) m.relatedTests.forEach((t) => mappedTestsFromDB.push(t));
+    });
+
+    let selectedTestNames = selectedTestDetails.map((t) => typeof t === "string" ? t : t.name);
     const skippedTestNames = skippedTestDetails.map((t) => typeof t === "string" ? t : t.name);
+
+    // Merge in DB mappings explicitly
+    selectedTestNames = [...new Set([...selectedTestNames, ...mappedTestsFromDB])];
 
     await logService.addLog(prId, "test_selection", `Selected: ${selectedTestNames.length} | Skipped: ${skippedTestNames.length} | Priority: ${recommendedPriority}`);
     await pipelineService.updateStage(prId, "test_selection", "completed");
 
-    // ── STAGE 5: Test Execution (CodeBuild or Simulation) ───
+    // ── STAGE 5: Test Execution (CodeBuild Integration) ───
     await pipelineService.updateStage(prId, "test_execution", "running");
-    await logService.addLog(prId, "test_execution", `Executing ${selectedTestNames.length} selected tests (${recommendedPriority})...`);
+    await logService.addLog(prId, "test_execution", `Executing ${selectedTestNames.length} selected tests...`);
 
-    let execution;
-    let codebuildInfo = null;
-    let testExecutionProvider = "simulation";
-
-    // Try AWS CodeBuild for real execution
-    if (codebuildService.isCodeBuildConfigured()) {
-      try {
-        await logService.addLog(prId, "test_execution", "🏗️ Triggering AWS CodeBuild to run selected tests...");
-
-        const buildResponse = await codebuildService.startTestBuild({
-          prId,
-          repo: pr.repo,
-          branch: pr.branch,
-          selectedTests: selectedTestNames,
-          commitMessage: pr.commitMessage || "",
-        });
-
-        if (buildResponse) {
-          codebuildInfo = { buildId: buildResponse.buildId, buildArn: buildResponse.buildArn, projectName: buildResponse.projectName };
-          await logService.addLog(prId, "test_execution", `CodeBuild started: ${buildResponse.buildId}`);
-
-          // Poll for completion
-          const buildStatus = await codebuildService.waitForBuild(
-            buildResponse.buildId,
-            async (status) => {
-              await logService.addLog(prId, "test_execution", `CodeBuild status: ${status.status} (${status.duration || 0}s)`, "debug");
-            }
-          );
-
-          codebuildInfo.status = buildStatus.status;
-          codebuildInfo.duration = buildStatus.duration;
-          codebuildInfo.phases = buildStatus.phases;
-          codebuildInfo.logs = buildStatus.logs;
-          codebuildInfo.artifacts = buildStatus.artifacts;
-          codebuildInfo.timedOut = buildStatus.timedOut || false;
-
-          const buildPassed = buildStatus.status === "SUCCEEDED";
-          testExecutionProvider = "codebuild";
-
-          // Map CodeBuild result to our execution format
-          execution = {
-            results: selectedTestNames.map((testName, idx) => ({
-              name: testName,
-              status: buildPassed ? "passed" : (idx === 0 ? "failed" : (Math.random() > 0.3 ? "passed" : "failed")),
-              duration: Math.round((buildStatus.duration * 1000) / Math.max(selectedTestNames.length, 1)),
-              assertions: { total: 1, passed: buildPassed ? 1 : 0, failed: buildPassed ? 0 : 1 },
-              module: testName.split("/")[0] || "unknown",
-              source: "codebuild",
-              priority: 1,
-              ...(buildPassed ? {} : { error: { message: `Build ${buildStatus.status}`, type: "BuildError" } }),
-            })),
-            summary: {
-              total: selectedTestNames.length,
-              passed: buildPassed ? selectedTestNames.length : Math.floor(selectedTestNames.length * 0.7),
-              failed: buildPassed ? 0 : Math.ceil(selectedTestNames.length * 0.3),
-              passRate: buildPassed ? 100 : 70,
-              totalDuration: (buildStatus.duration || 0) * 1000,
-              timeSaved: Math.max(30, Math.round(((buildStatus.duration || 120) * 2.5) - (buildStatus.duration || 120))),
-            },
-          };
-
-          await logService.addLog(prId, "test_execution", `🏁 CodeBuild ${buildStatus.status} in ${buildStatus.duration}s`);
-          if (buildStatus.logs?.deepLink) {
-            await logService.addLog(prId, "test_execution", `Build logs: ${buildStatus.logs.deepLink}`);
-          }
-        } else {
-          throw new Error("CodeBuild returned null — falling back to simulation");
-        }
-      } catch (cbErr) {
-        await logService.addLog(prId, "test_execution", `CodeBuild failed: ${cbErr.message} — falling back to simulation`, "warn");
-        execution = null; // will trigger simulation below
-      }
+    // Merge Ollama suggested tests with AI-selected tests
+    if (ollamaSuggestedTests && ollamaSuggestedTests.length > 0) {
+      selectedTestNames = [...new Set([...selectedTestNames, ...ollamaSuggestedTests])];
     }
 
-    // Fallback: simulate test execution
-    if (!execution) {
-      testExecutionProvider = "simulation";
-      await logService.addLog(prId, "test_execution", "Running simulated test execution (CodeBuild not configured)");
-      execution = simulateTestExecution(selectedTestDetails, riskScore);
-    }
+    const { runTests } = require("./codebuildService");
 
-    await logService.addLog(prId, "test_execution", `Results: ${execution.summary.passed} passed, ${execution.summary.failed} failed (${execution.summary.passRate}% pass rate) [${testExecutionProvider}]`);
-    await logService.addLog(prId, "test_execution", `Execution time: ${execution.summary.totalDuration}ms | Est. time saved: ${execution.summary.timeSaved}s`);
+    // Safe fallback for repo names if pr fields are missing
+    const githubUrl = `https://github.com/${pr.repoOwner || pr.repo.split('/')[0]}/${pr.repoName || pr.repo.split('/')[1]}.git`;
 
-    // Log failed tests
-    const failedTests = execution.results.filter((r) => r.status === "failed");
-    for (const ft of failedTests.slice(0, 5)) {
-      await logService.addLog(prId, "test_execution", `✗ FAIL: ${ft.name} — ${ft.error?.type}: ${ft.error?.message}`, "warn");
-    }
+    const build = await runTests(
+      githubUrl,
+      pr.branch || "main",
+      selectedTestNames
+    );
 
-    // AI analysis of test results
-    let testResultsAnalysis = null;
-    await logService.addLog(prId, "test_execution", "Calling Ollama AI to analyze test results...");
-    const aiResultAnalysis = await analyzeTestResultsWithAI({
-      testResults: execution.results,
-      riskScore,
-      filesChanged: pr.filesChanged,
-      modules: allModules,
-      commitMessage: pr.commitMessage || pr.branch || "",
-    });
+    pr.buildId = build.id;
+    pr.buildStatus = build.buildStatus || "STARTED";
 
-    if (aiResultAnalysis) {
-      testResultsAnalysis = aiResultAnalysis;
-      await logService.addLog(prId, "test_execution", `AI Assessment: ${aiResultAnalysis.summary}`);
-      await logService.addLog(prId, "test_execution", `Merge Safety: ${aiResultAnalysis.isSafeToMerge ? "✓ Safe" : "✗ Not safe"} (${aiResultAnalysis.mergeConfidence}% confidence)`);
-      if (aiResultAnalysis.failureAnalysis) {
-        await logService.addLog(prId, "test_execution", `Failure Analysis: ${aiResultAnalysis.failureAnalysis}`);
-      }
-      if (aiResultAnalysis.actionItems.length > 0) {
-        await logService.addLog(prId, "test_execution", `Action Items: ${aiResultAnalysis.actionItems.join(" | ")}`);
-      }
-    } else {
-      await logService.addLog(prId, "test_execution", "AI test result analysis unavailable");
-    }
-
-    await pipelineService.updateStage(prId, "test_execution", "completed");
-
-    // ── STAGE 6: Report Upload ─────────────────────────────
-    await pipelineService.updateStage(prId, "report_upload", "running");
-    await logService.addLog(prId, "report_upload", "Generating comprehensive analysis report");
-
-    const report = {
-      prId,
-      repo: pr.repo,
-      riskScore,
-      confidence,
-      riskLevel,
-      provider,
-      riskBreakdown,
-      aiReasoning,
-      aiSuggestions,
-      modulesImpacted: allModules,
-      fileClassifications: categoryBreakdown,
-      testSelection: {
-        selectedTests: selectedTestDetails,
-        skippedTests: skippedTestDetails,
-        strategy: selectionStrategy,
-        coverageEstimate,
-        recommendedPriority,
-        provider: testSelectionProvider,
-      },
-      testExecution: execution,
-      testExecutionProvider,
-      codebuildInfo,
-      testResultsAnalysis,
-      duration: new Date() - pr.analysisStartedAt,
-      timestamp: new Date(),
-    };
-
-    const reportUrl = await s3Service.uploadReport(prId, report);
-    await pipelineService.updateStage(prId, "report_upload", "completed");
-
-    // ── FINAL: Save all results to PR ──────────────────────
+    // Save all initial analysis before finishing and handing off to poller
     pr.modulesImpacted = allModules;
-    pr.selectedTests = selectedTestNames;
-    pr.skippedTests = skippedTestNames;
     pr.riskScore = riskScore;
     pr.confidence = confidence;
-    pr.totalTests = selectedTestNames.length + skippedTestNames.length;
-    pr.estimatedTimeSaved = execution.summary.timeSaved;
-    pr.status = "completed";
-    pr.analysisCompletedAt = new Date();
-    pr.analysisDuration = pr.analysisCompletedAt - pr.analysisStartedAt;
-    pr.analysisProvider = provider;
-    pr.modelVersion = provider.startsWith("ollama") ? OLLAMA_MODEL : "heuristic-v2";
-    pr.reportUrl = reportUrl;
-    pr.testExecution = {
-      passed: execution.summary.passed,
-      failed: execution.summary.failed,
-      passRate: execution.summary.passRate,
-      totalDuration: execution.summary.totalDuration,
-      results: execution.results,
-    };
-    pr.riskBreakdown = riskBreakdown;
-    pr.aiReasoning = aiReasoning;
-    pr.aiSuggestions = aiSuggestions;
-    pr.fileClassifications = categoryBreakdown;
+    pr.impactLevel = impactLevel;
+    pr.aiSummary = aiSummary;
+    pr.aiReason = aiReason;
 
-    // AI-enriched fields
-    pr.testSelectionStrategy = selectionStrategy;
-    pr.coverageEstimate = coverageEstimate;
-    pr.testSelectionDetails = selectedTestDetails;
-    pr.skippedTestDetails = skippedTestDetails;
-    pr.testResultsAnalysis = testResultsAnalysis;
+    pr.selectedTests = selectedTestNames;
+    pr.skippedTests = skippedTestNames;
+    pr.totalTests = pr.selectedTests.length + skippedTestNames.length;
+    pr.fileClassifications = categoryBreakdown;
     pr.riskLevel = riskLevel;
-    pr.testExecutionProvider = testExecutionProvider;
-    pr.codebuildInfo = codebuildInfo;
+    pr.analysisProvider = provider;
+    pr.status = "running"; // Set strictly so the UI knows tests are executing
 
     await pr.save();
 
-    // Complete pipeline
-    await pipelineService.completePipeline(prId);
-    await logService.addLog(prId, "report_upload", `Analysis complete — Risk: ${riskScore}% (${riskLevel}), Tests: ${execution.summary.passed}/${execution.summary.total} passed [${testExecutionProvider}], Merge: ${testResultsAnalysis?.isSafeToMerge ? "Safe" : "Review needed"}`);
+    await pipelineService.updateStage(prId, "test_execution", "triggered");
+    await logService.addLog(prId, "test_execution", `Build started: ${build.id}`);
 
+    // Wait for the background buildPoller to complete the final steps.
     return pr;
   } catch (err) {
     pr.status = "failed";

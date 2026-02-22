@@ -10,7 +10,7 @@ const darkColors = {
   bgCard: "rgba(15, 23, 42, 0.8)",
   bgSidebar: "rgba(10, 14, 26, 0.95)",
   bgHover: "rgba(148, 163, 184, 0.06)",
-  bgInput: "rgba(15, 23, 42, 0.6)",
+  bgInput: "rgba(10, 15, 30, 0.5)",
 
   // Borders
   border: "rgba(148, 163, 184, 0.08)",

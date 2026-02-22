@@ -286,6 +286,8 @@ export default function AIAnalysisPage() {
                     "PR ID",
                     "Risk",
                     "Confidence",
+                    "Impact",
+                    "Summary",
                     "Modules",
                     "Provider",
                     "Status",
@@ -312,6 +314,12 @@ export default function AIAnalysisPage() {
                     (pr.riskScore || 0) >= 70
                       ? "#ef4444"
                       : (pr.riskScore || 0) >= 40
+                        ? "#f59e0b"
+                        : "#10b981";
+                  const impactColor =
+                    pr.impactLevel === "high"
+                      ? "#ef4444"
+                      : pr.impactLevel === "medium"
                         ? "#f59e0b"
                         : "#10b981";
                   return (
@@ -358,6 +366,46 @@ export default function AIAnalysisPage() {
                         borderBottom={`1px solid ${t.border}`}
                       >
                         {pr.confidence ?? 0}%
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        borderBottom={`1px solid ${t.border}`}
+                      >
+                        {pr.impactLevel ? (
+                          <Badge
+                            bg={`${impactColor}18`}
+                            color={impactColor}
+                            borderRadius="md"
+                            px="2"
+                            py="0.5"
+                            fontSize="10px"
+                            fontWeight="700"
+                            textTransform="uppercase"
+                            border={`1px solid ${impactColor}30`}
+                          >
+                            {pr.impactLevel}
+                          </Badge>
+                        ) : (
+                          <Text fontSize="11px" color={t.textFaint}>—</Text>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell
+                        px="4"
+                        py="3"
+                        borderBottom={`1px solid ${t.border}`}
+                        maxW="220px"
+                      >
+                        <Text
+                          fontSize="11px"
+                          color={t.textSecondary}
+                          lineHeight="1.4"
+                          overflow="hidden"
+                          textOverflow="ellipsis"
+                          whiteSpace="nowrap"
+                        >
+                          {pr.aiSummary || pr.aiReasoning || "—"}
+                        </Text>
                       </Table.Cell>
                       <Table.Cell
                         px="4"
