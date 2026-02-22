@@ -196,4 +196,34 @@ async function updatePR(req, res) {
   }
 }
 
-module.exports = { getAllPRs, getPRById, analyzePR, getRecentPRs, getPRStatus, deletePR, updatePR };
+const { getReport } = require("../services/s3Service");
+
+// GET /api/pr/:id/report
+// Fetch the detailed test report from S3 for a given PR
+async function getPRReport(req, res) {
+  try {
+    const prId = req.params.id;
+
+    // Verify the user owns this PR
+    const pr = await PullRequest.findOne({ prId, userId: req.user._id });
+    if (!pr) {
+      return res.status(404).json({ error: "PR not found or unauthorized" });
+    }
+
+    if (!pr.reportUrl) {
+      return res.status(404).json({ error: "Report not available yet" });
+    }
+
+    const reportData = await getReport(prId);
+    if (!reportData) {
+      return res.status(500).json({ error: "Failed to fetch report from S3" });
+    }
+
+    res.json(reportData);
+  } catch (error) {
+    console.error("❌ Get PR report error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+module.exports = { getAllPRs, getPRById, analyzePR, getRecentPRs, getPRStatus, deletePR, updatePR, getPRReport };

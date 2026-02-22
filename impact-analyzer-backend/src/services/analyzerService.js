@@ -272,10 +272,29 @@ async function analyzePullRequest(prId) {
     // ── STAGE 2: Dependency & Module Mapping ───────────────
     await pipelineService.updateStage(prId, "dependency_mapping", "running");
 
-    const dbMappings = await TestMapping.find({ filePath: { $in: pr.filesChanged } });
-    const modulesFromDB = dbMappings.map((m) => m.module);
     const modulesFromPath = pr.filesChanged.map(getModuleFromPath);
-    const allModules = [...new Set([...modulesFromDB, ...modulesFromPath])];
+
+    // 1. Fetch exact mappings for files changed
+    const exactMappings = await TestMapping.find({ filePath: { $in: pr.filesChanged } });
+    const exactModules = exactMappings.map(m => m.module);
+
+    // 2. Fetch all mappings for modules that were impacted
+    const allModules = [...new Set([...exactModules, ...modulesFromPath])];
+    const allModuleMappings = await TestMapping.find({ module: { $in: allModules } });
+
+    // 3. Keep track of what will be explicitly tested
+    const explicitTestNames = [];
+    exactMappings.forEach(m => {
+      if (m.relatedTests) m.relatedTests.forEach(t => explicitTestNames.push(t));
+    });
+
+    const contextStr = `
+Available tests running for these specific file changes:
+${exactMappings.map(m => `- ${m.filePath} -> mapped to run: [${m.relatedTests.join(', ')}]`).join('\n') || "None natively mapped"}
+
+Other existing tests in impacted modules (${allModules.join(', ')}), but skipped because changes didn't touch their exact files:
+${allModuleMappings.filter(m => !pr.filesChanged.includes(m.filePath)).map(m => `- ${m.filePath} -> skipped tests: [${m.relatedTests.join(', ')}]`).join('\n') || "None explicitly found"}
+`;
 
     await logService.addLog(prId, "dependency_mapping", `Mapped ${pr.filesChanged.length} files → ${allModules.length} modules: ${allModules.join(", ")}`);
     await pipelineService.updateStage(prId, "dependency_mapping", "completed");
@@ -370,32 +389,28 @@ async function analyzePullRequest(prId) {
       await logService.addLog(prId, "risk_prediction", `Breakdown — File: ${riskBreakdown.fileRisk}%, Volume: ${riskBreakdown.volumeRisk}%, Spread: ${riskBreakdown.spreadRisk}%, Critical: ${riskBreakdown.criticalRisk}%, Commit: ${riskBreakdown.commitRisk}%`);
     }
 
+    await pipelineService.updateStage(prId, "risk_prediction", "completed");
+
     // ── STAGE 4: Test Selection (Database Mapping) ─────────
     await pipelineService.updateStage(prId, "test_selection", "running");
 
-    let selectedTestDetails = [];
-    let skippedTestDetails = [];
     let selectionStrategy = "database-mapping";
-    let coverageEstimate = 85;
     let recommendedPriority = riskScore >= 60 ? "integration-first" : "unit-first";
-    let testSelectionProvider = "database";
 
-    await logService.addLog(prId, "test_selection", `Fetching mapped tests from database based on impacted files...`);
+    let selectedTestNames = [...new Set(explicitTestNames)];
 
-    // Ensure all tests from TestMapping are included
-    dbMappings.forEach((m) => {
-      if (m.relatedTests) {
-        m.relatedTests.forEach((t) => {
-          selectedTestDetails.push({ name: t, type: "unit", reason: `DB mapping for ${m.module}` });
-        });
+    // Skipped tests are those inside the impacted modules that were NOT selected
+    let skippedTestNames = [];
+    allModuleMappings.forEach(m => {
+      if (!pr.filesChanged.includes(m.filePath)) {
+        if (m.relatedTests) {
+          m.relatedTests.forEach(t => {
+            if (!selectedTestNames.includes(t)) skippedTestNames.push(t);
+          });
+        }
       }
     });
-
-    let selectedTestNames = selectedTestDetails.map((t) => typeof t === "string" ? t : t.name);
-    const skippedTestNames = skippedTestDetails.map((t) => typeof t === "string" ? t : t.name);
-
-    // Filter duplicates explicitly
-    selectedTestNames = [...new Set(selectedTestNames)];
+    skippedTestNames = [...new Set(skippedTestNames)];
 
     await logService.addLog(prId, "test_selection", `Selection Strategy: ${selectionStrategy}`);
     await logService.addLog(prId, "test_selection", `Selected: ${selectedTestNames.length} | Skipped: ${skippedTestNames.length} | Priority: ${recommendedPriority}`);

@@ -76,7 +76,10 @@ ${filesChanged.map((f) => `- ${f}`).join("\n")}
 ${Object.entries(fileClassifications || {}).map(([cat, count]) => `- ${cat}: ${count} files`).join("\n")}
 
 ## Instructions
-Analyze the risk of this PR and respond with ONLY a JSON object:
+Analyze the risk of this PR and respond with ONLY a JSON object.
+IMPORTANT: DO NOT hallucinate functionality. Base your evaluation EXACTLY on the files changed and their names. If the PR is about authentication or input validation, DO NOT mention payment, billing, or unrelated modules.
+
+Respond with ONLY the following JSON structure:
 
 {
   "riskScore": <number 0-100>,

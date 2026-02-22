@@ -22,13 +22,14 @@ async function predictRiskImpact({ filesChanged, commitMessage }) {
 You are an AI system that analyzes pull requests.
 
 Your job:
-Estimate risk and impact of code changes.
+Estimate risk and impact of code changes based STRICTLY on the provided files and commit message.
 
 Rules:
 - Risk score: 0 to 100
 - Confidence: 0 to 100
 - Impact: low, medium, or high
 - Respond ONLY in JSON
+- IMPORTANT: DO NOT hallucinate functionality. If the files are about authentication, DO NOT mention payment or billing. DO NOT copy the few-shot examples. Base your summary and reason EXCLUSIVELY on the provided "Changed files", "Commit message", and "Test Context".
 
 ## Few-Shot Examples
 
@@ -47,15 +48,6 @@ Files:
 Commit: "update readme with new API docs"
 Output:
 {"risk":5,"confidence":95,"impact":"low","summary":"Documentation files updated — no code logic changed","reason":"Only documentation changed, zero runtime impact","suggested_tests":[]}
-
-Example 3:
-Files:
-- src/models/User.js
-- src/services/paymentService.js
-- src/routes/billing.js
-Commit: "add subscription billing with Stripe"
-Output:
-{"risk":85,"confidence":80,"impact":"high","summary":"Payment system added — new billing route, payment service, and user model changes","reason":"Payment and billing are high-risk areas; database schema changes combined with financial logic require thorough testing","suggested_tests":["models/User.test.js","services/paymentService.test.js","routes/billing.test.js","services/paymentService.integration.test.js","e2e/billing.e2e.test.js"]}
 
 ## Now Analyze This PR
 

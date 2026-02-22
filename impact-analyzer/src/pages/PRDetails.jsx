@@ -37,8 +37,9 @@ import PipelineView from "../components/PipelineView";
 import LogViewer from "../components/LogViewer";
 import EditPRModal from "../components/EditPRModal";
 import DeletePRModal from "../components/DeletePRModal";
+import S3ReportModal from "../components/S3ReportModal";
 import { useThemeColors } from "../hooks/useThemeColors";
-import { getPR, analyzePR, getLogs } from "../api/api";
+import { getPR, analyzePR, getLogs, getPRReport } from "../api/api";
 import { toaster } from "../components/ui/toaster";
 
 export default function PRDetails() {
@@ -53,6 +54,9 @@ export default function PRDetails() {
   const [countdown, setCountdown] = useState(null); // seconds remaining
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [s3ReportModalOpen, setS3ReportModalOpen] = useState(false);
+  const [s3ReportData, setS3ReportData] = useState(null);
+  const [loadingS3Report, setLoadingS3Report] = useState(false);
   const pollRef = useRef(null);
   const countdownRef = useRef(null);
 
@@ -140,12 +144,42 @@ export default function PRDetails() {
     }
   }, [prStatus]);
 
+  async function handleViewS3Report() {
+    setLoadingS3Report(true);
+    try {
+      const report = await getPRReport(id);
+      setS3ReportData(report);
+      setS3ReportModalOpen(true);
+    } catch (err) {
+      toaster.create({
+        title: "Error fetching report",
+        description: "Failed to download S3 report from the API.",
+        type: "error",
+        duration: 4000,
+      });
+    } finally {
+      setLoadingS3Report(false);
+    }
+  }
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   async function handleRefresh() {
     setIsRefreshing(true);
     await fetchData();
     setTimeout(() => setIsRefreshing(false), 400); // 400ms for visual feedback
   }
+
+  // Auto refresh every 30 seconds
+  useEffect(() => {
+    const autoRefreshInterval = setInterval(() => {
+      // Don't auto-refresh if we are actively fast-polling or analyzing
+      if (!pollRef.current && !analyzing) {
+        fetchData();
+      }
+    }, 30000);
+
+    return () => clearInterval(autoRefreshInterval);
+  }, [fetchData, analyzing]);
 
   // Handle analyze button click (manual — skip timer)
   async function handleAnalyze() {
@@ -962,7 +996,19 @@ export default function PRDetails() {
               {pr.reportUrl && (
                 <Flex justify="space-between" align="center">
                   <Text fontSize="11px" color={t.textMuted}>Final Report</Text>
-                  <Text as="a" href={pr.reportUrl} target="_blank" rel="noopener" fontSize="11px" color="#10b981" fontWeight="600" _hover={{ textDecoration: "underline" }}>View Report on S3 →</Text>
+                  <Flex gap="3" align="center">
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={handleViewS3Report}
+                      disabled={loadingS3Report}
+                      color={t.textPrimary}
+                    >
+                      {loadingS3Report ? <Spinner size="xs" mr="1" /> : null}
+                      View Details
+                    </Button>
+                    <Text as="a" href={pr.reportUrl} target="_blank" rel="noopener" fontSize="11px" color="#10b981" fontWeight="600" _hover={{ textDecoration: "underline" }}>Open in S3 →</Text>
+                  </Flex>
                 </Flex>
               )}
             </Flex>
@@ -1125,6 +1171,13 @@ export default function PRDetails() {
           setDeleteModalOpen(false);
           navigate("/pull-requests");
         }}
+      />
+
+      {/* S3 Report Modal */}
+      <S3ReportModal
+        isOpen={s3ReportModalOpen}
+        onClose={() => setS3ReportModalOpen(false)}
+        reportData={s3ReportData}
       />
     </Box>
   );

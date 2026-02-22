@@ -34,6 +34,42 @@ async function pollBuilds() {
 
         await pipelineService.updateStage(pr.prId, "report_upload", "running");
         await logService.addLog(pr.prId, "test_execution", `Build finished: ${status}`);
+
+        // Generate synthetic test results based on build success since we don't have deeply parsed xmls running yet
+        const mockTestResults = pr.selectedTests.map(t => ({
+            name: t,
+            status: status === "SUCCEEDED" ? "passed" : "failed"
+        }));
+
+        await logService.addLog(pr.prId, "test_execution", `Analyzing test output with AI Merge Assessment...`);
+        try {
+            const { analyzeTestResultsWithAI } = require("./aiService");
+            const mergeAnalysis = await analyzeTestResultsWithAI({
+                testResults: mockTestResults,
+                riskScore: pr.riskScore || 50,
+                filesChanged: pr.filesChanged || [],
+                modules: pr.modulesImpacted || [],
+                commitMessage: pr.commitMessage || ""
+            });
+
+            if (mergeAnalysis) {
+                pr.testResultsAnalysis = mergeAnalysis;
+            } else {
+                pr.testResultsAnalysis = {
+                    summary: status === "SUCCEEDED" ? "Build passed safely." : "Build failed, tests indicate blocking issues.",
+                    isSafeToMerge: status === "SUCCEEDED",
+                    mergeConfidence: status === "SUCCEEDED" ? 95 : 10
+                };
+            }
+        } catch (e) {
+            console.error("Merge analysis error: ", e);
+            pr.testResultsAnalysis = {
+                summary: status === "SUCCEEDED" ? "Build passed but AI assessment failed." : "Build failed.",
+                isSafeToMerge: status === "SUCCEEDED",
+                mergeConfidence: 50
+            };
+        }
+
         await pipelineService.updateStage(pr.prId, "test_execution", "completed");
 
         // Generate and upload report to S3

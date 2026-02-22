@@ -8,6 +8,7 @@ const {
   getPRStatus,
   deletePR,
   updatePR,
+  getPRReport,
 } = require("../controllers/prController");
 
 const { protect } = require("../middleware/auth");
@@ -20,6 +21,9 @@ router.get("/recent", protect, getRecentPRs);
 
 // GET /api/pr/:id/status — PR + pipeline + logs (for polling)
 router.get("/:id/status", protect, getPRStatus);
+
+// GET /api/pr/:id/report — Fetch detailed test report from S3
+router.get("/:id/report", protect, getPRReport);
 
 // GET /api/pr/:id — fetch a PR by prId
 router.get("/:id", protect, getPRById);
