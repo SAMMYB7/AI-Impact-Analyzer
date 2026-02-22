@@ -370,71 +370,40 @@ async function analyzePullRequest(prId) {
       await logService.addLog(prId, "risk_prediction", `Breakdown — File: ${riskBreakdown.fileRisk}%, Volume: ${riskBreakdown.volumeRisk}%, Spread: ${riskBreakdown.spreadRisk}%, Critical: ${riskBreakdown.criticalRisk}%, Commit: ${riskBreakdown.commitRisk}%`);
     }
 
-    await pipelineService.updateStage(prId, "risk_prediction", "completed");
-
-    // ── STAGE 4: AI Test Selection ─────────────────────────
+    // ── STAGE 4: Test Selection (Database Mapping) ─────────
     await pipelineService.updateStage(prId, "test_selection", "running");
 
-    let selectedTestDetails, skippedTestDetails;
-    let selectionStrategy = "";
-    let coverageEstimate = 0;
-    let recommendedPriority = "unit-first";
-    let testSelectionProvider = provider;
+    let selectedTestDetails = [];
+    let skippedTestDetails = [];
+    let selectionStrategy = "database-mapping";
+    let coverageEstimate = 85;
+    let recommendedPriority = riskScore >= 60 ? "integration-first" : "unit-first";
+    let testSelectionProvider = "database";
 
-    await logService.addLog(prId, "test_selection", `Calling Ollama AI for intelligent test selection (risk: ${riskScore}%)...`);
-    const aiTestResult = await selectTestsWithAI({
-      filesChanged: pr.filesChanged,
-      modules: allModules,
-      riskScore,
-      riskLevel,
-      commitMessage: pr.commitMessage || pr.branch || "",
-      fileClassifications: categoryBreakdown,
-    });
-
-    if (aiTestResult && aiTestResult.selectedTests.length > 0) {
-      selectedTestDetails = aiTestResult.selectedTests;
-      skippedTestDetails = aiTestResult.skippedTests;
-      selectionStrategy = aiTestResult.selectionStrategy;
-      coverageEstimate = aiTestResult.coverageEstimate;
-      recommendedPriority = aiTestResult.recommendedPriority;
-      testSelectionProvider = `ollama/${OLLAMA_MODEL}`;
-
-      await logService.addLog(prId, "test_selection", `AI Strategy: ${selectionStrategy}`);
-      await logService.addLog(prId, "test_selection", `AI selected ${selectedTestDetails.length} tests, skipped ${skippedTestDetails.length} | Coverage: ~${coverageEstimate}%`);
-    } else {
-      await logService.addLog(prId, "test_selection", "AI test selection unavailable — using heuristic selection");
-      const hTests = selectTestsHeuristic(pr.filesChanged, allModules, dbMappings, riskScore);
-      selectedTestDetails = hTests.selectedTests;
-      skippedTestDetails = hTests.skippedTests;
-      selectionStrategy = hTests.selectionStrategy;
-      coverageEstimate = hTests.coverageEstimate;
-      recommendedPriority = hTests.recommendedPriority;
-      testSelectionProvider = "heuristic-engine";
-    }
+    await logService.addLog(prId, "test_selection", `Fetching mapped tests from database based on impacted files...`);
 
     // Ensure all tests from TestMapping are included
-    const mappedTestsFromDB = [];
     dbMappings.forEach((m) => {
-      if (m.relatedTests) m.relatedTests.forEach((t) => mappedTestsFromDB.push(t));
+      if (m.relatedTests) {
+        m.relatedTests.forEach((t) => {
+          selectedTestDetails.push({ name: t, type: "unit", reason: `DB mapping for ${m.module}` });
+        });
+      }
     });
 
     let selectedTestNames = selectedTestDetails.map((t) => typeof t === "string" ? t : t.name);
     const skippedTestNames = skippedTestDetails.map((t) => typeof t === "string" ? t : t.name);
 
-    // Merge in DB mappings explicitly
-    selectedTestNames = [...new Set([...selectedTestNames, ...mappedTestsFromDB])];
+    // Filter duplicates explicitly
+    selectedTestNames = [...new Set(selectedTestNames)];
 
+    await logService.addLog(prId, "test_selection", `Selection Strategy: ${selectionStrategy}`);
     await logService.addLog(prId, "test_selection", `Selected: ${selectedTestNames.length} | Skipped: ${skippedTestNames.length} | Priority: ${recommendedPriority}`);
     await pipelineService.updateStage(prId, "test_selection", "completed");
 
     // ── STAGE 5: Test Execution (CodeBuild Integration) ───
     await pipelineService.updateStage(prId, "test_execution", "running");
     await logService.addLog(prId, "test_execution", `Executing ${selectedTestNames.length} selected tests...`);
-
-    // Merge Ollama suggested tests with AI-selected tests
-    if (ollamaSuggestedTests && ollamaSuggestedTests.length > 0) {
-      selectedTestNames = [...new Set([...selectedTestNames, ...ollamaSuggestedTests])];
-    }
 
     const { runTests } = require("./codebuildService");
 
