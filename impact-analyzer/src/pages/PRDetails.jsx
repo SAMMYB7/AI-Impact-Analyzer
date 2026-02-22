@@ -28,6 +28,7 @@ import {
   LuTimer,
   LuPencil,
   LuTrash2,
+  LuRefreshCw,
 } from "react-icons/lu";
 import GlassCard from "../components/shared/GlassCard";
 import StatusBadge from "../components/shared/StatusBadge";
@@ -138,6 +139,13 @@ export default function PRDetails() {
       setAnalyzing(false);
     }
   }, [prStatus]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    await fetchData();
+    setTimeout(() => setIsRefreshing(false), 400); // 400ms for visual feedback
+  }
 
   // Handle analyze button click (manual — skip timer)
   async function handleAnalyze() {
@@ -290,6 +298,30 @@ export default function PRDetails() {
               <LuTrash2 />
             </Icon>
             Delete
+          </Button>
+          {/* Refresh Button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            borderRadius="lg"
+            fontSize="12px"
+            fontWeight="600"
+            px="3"
+            color={t.textPrimary}
+            border={`1px solid ${t.border}`}
+            _hover={{ bg: t.bgHover, borderColor: t.borderAccent }}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            transition="all 0.15s"
+          >
+            {isRefreshing ? (
+              <Spinner size="xs" mr="1.5" />
+            ) : (
+              <Icon mr="1.5" boxSize="3.5">
+                <LuRefreshCw />
+              </Icon>
+            )}
+            {isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
           {/* Analyze Button */}
           <Button
@@ -925,6 +957,12 @@ export default function PRDetails() {
                 <Flex justify="space-between" align="center">
                   <Text fontSize="11px" color={t.textMuted}>Logs</Text>
                   <Text as="a" href={pr.codebuildInfo.logs.deepLink} target="_blank" rel="noopener" fontSize="11px" color="#3b82f6" fontWeight="600" _hover={{ textDecoration: "underline" }}>View in CloudWatch →</Text>
+                </Flex>
+              )}
+              {pr.reportUrl && (
+                <Flex justify="space-between" align="center">
+                  <Text fontSize="11px" color={t.textMuted}>Final Report</Text>
+                  <Text as="a" href={pr.reportUrl} target="_blank" rel="noopener" fontSize="11px" color="#10b981" fontWeight="600" _hover={{ textDecoration: "underline" }}>View Report on S3 →</Text>
                 </Flex>
               )}
             </Flex>

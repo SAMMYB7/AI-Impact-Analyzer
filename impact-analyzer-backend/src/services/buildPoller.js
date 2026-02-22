@@ -2,6 +2,7 @@ const PullRequest = require("../models/PullRequest.model");
 const { getBuildStatus } = require("./codebuildService");
 const pipelineService = require("./pipelineService");
 const logService = require("./logService");
+const { uploadReport } = require("./s3Service");
 
 async function pollBuilds() {
     const prs = await PullRequest.find({
@@ -30,11 +31,27 @@ async function pollBuilds() {
 
         pr.testResults = { passed, failed };
         pr.buildCompleted = true;
-        await pr.save();
 
         await pipelineService.updateStage(pr.prId, "report_upload", "running");
         await logService.addLog(pr.prId, "test_execution", `Build finished: ${status}`);
         await pipelineService.updateStage(pr.prId, "test_execution", "completed");
+
+        // Generate and upload report to S3
+        const reportData = {
+            prId: pr.prId,
+            repo: pr.repo,
+            branch: pr.branch,
+            buildStatus: status,
+            testResults: pr.testResults,
+            selectedTests: pr.selectedTests,
+            timestamp: new Date().toISOString()
+        };
+
+        const reportUrl = await uploadReport(pr.prId, reportData);
+        if (reportUrl) {
+            pr.reportUrl = reportUrl;
+            await logService.addLog(pr.prId, "report_upload", `Report uploaded to S3: ${reportUrl}`);
+        }
 
         pr.status = "completed";
         await pr.save();
