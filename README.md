@@ -33,7 +33,7 @@ An AI-powered DevOps intelligence platform that analyzes GitHub Pull Requests, p
 4. **Intelligently selects only the tests that matter** — rather than running the full test suite, the AI recommends the minimal set of tests that cover the actual changes.
 5. **Triggers an AWS CodeBuild job** with only the selected tests.
 6. **Uploads the test report to S3** and polls for completion.
-7. **Streams real-time status updates** to the React frontend via Socket.io.
+7. **Exposes status + logs endpoints** so the React frontend can poll pipeline progress in near real-time.
 8. **Displays rich analytics** — risk trends, time saved, test reduction rates, pipeline health, and full log output.
 
 The platform provides a production-grade dashboard experience (similar to Datadog, GitHub Actions, or Vercel) with glassmorphism UI, animated counters, live charts, dark/light themes, and detailed log viewers.
@@ -61,11 +61,11 @@ The platform provides a production-grade dashboard experience (similar to Datado
 │  │  (Data store)│   │   (Test runner)  │   │  Service    │  │
 │  └──────────────┘   └────────┬────────┘   └─────────────┘  │
 │                              │                              │
-│  ┌──────────────┐   ┌────────▼────────┐                     │
-│  │  Socket.io   │   │   AWS S3        │                     │
-│  │  (Real-time) │   │   (Reports)     │                     │
-│  └──────┬───────┘   └─────────────────┘                     │
-└─────────┼───────────────────────────────────────────────────┘
+│  ┌─────────────────┐                                         │
+│  │   AWS S3        │                                         │
+│  │   (Reports)     │                                         │
+│  └─────────────────┘                                         │
+└──────────────────────────────────────────────────────────────┘
           │
 ┌─────────▼───────────────────────────────────────────────────┐
 │              Frontend  (React + Vite)                       │
@@ -77,14 +77,14 @@ The platform provides a production-grade dashboard experience (similar to Datado
 
 ### Pipeline Stages
 
-| Stage | Name | Description |
-|-------|------|-------------|
-| 1 | Fetch Changes | Clone repo and list changed files |
-| 2 | Dependency Mapping | Map files to modules and dependency chains |
-| 3 | Risk Prediction | LLM scores the PR 0–100 with explanation |
-| 4 | Test Selection | LLM selects the minimal set of relevant tests |
-| 5 | Test Execution | AWS CodeBuild runs only the selected tests |
-| 6 | Report Upload | Results uploaded to S3 and stored in MongoDB |
+| Stage | Name               | Description                                   |
+| ----- | ------------------ | --------------------------------------------- |
+| 1     | Fetch Changes      | Clone repo and list changed files             |
+| 2     | Dependency Mapping | Map files to modules and dependency chains    |
+| 3     | Risk Prediction    | LLM scores the PR 0–100 with explanation      |
+| 4     | Test Selection     | LLM selects the minimal set of relevant tests |
+| 5     | Test Execution     | AWS CodeBuild runs only the selected tests    |
+| 6     | Report Upload      | Results uploaded to S3 and stored in MongoDB  |
 
 ---
 
@@ -92,33 +92,32 @@ The platform provides a production-grade dashboard experience (similar to Datado
 
 ### Frontend (`impact-analyzer/`)
 
-| Technology | Version | Purpose |
-|---|---|---|
-| **React** | 19.2.0 | Core UI framework |
-| **Vite** | 7.3.1 | Build tool and dev server |
-| **React Router DOM** | 7.13.0 | Client-side routing (8 routes) |
-| **Chakra UI v3** | 3.33.0 | Component library (layout, typography, theming) |
-| **Recharts** | 3.7.0 | Charts (Area, Bar, Pie, Line, Composed) |
-| **Framer Motion** | 12.34.0 | Animation library |
-| **react-icons** | 5.5.0 | Icon library (Lucide icon set) |
-| **next-themes** | 0.4.6 | Dark/Light theme switching |
-| **axios** | 1.13.5 | HTTP client for backend API calls |
+| Technology           | Version | Purpose                                         |
+| -------------------- | ------- | ----------------------------------------------- |
+| **React**            | 19.2.0  | Core UI framework                               |
+| **Vite**             | 7.3.1   | Build tool and dev server                       |
+| **React Router DOM** | 7.13.0  | Client-side routing (8 routes)                  |
+| **Chakra UI v3**     | 3.33.0  | Component library (layout, typography, theming) |
+| **Recharts**         | 3.7.0   | Charts (Area, Bar, Pie, Line, Composed)         |
+| **Framer Motion**    | 12.34.0 | Animation library                               |
+| **react-icons**      | 5.5.0   | Icon library (Lucide icon set)                  |
+| **next-themes**      | 0.4.6   | Dark/Light theme switching                      |
+| **axios**            | 1.13.5  | HTTP client for backend API calls               |
 
 ### Backend (`impact-analyzer-backend/`)
 
-| Technology | Version | Purpose |
-|---|---|---|
-| **Node.js / Express** | 5.x | REST API server |
-| **MongoDB / Mongoose** | 9.x | Database and ODM |
-| **Socket.io** | 4.x | Real-time bidirectional events |
-| **Ollama (local LLM)** | — | AI risk analysis and test selection |
-| **AWS CodeBuild** | SDK v3 | Cloud CI/CD test execution |
-| **AWS S3** | SDK v3 | Test report storage |
-| **AWS SageMaker** | SDK v3 | (Optional) Managed ML inference |
-| **jsonwebtoken** | 9.x | JWT authentication |
-| **bcryptjs** | 3.x | Password hashing |
-| **nodemailer** | 8.x | Email notifications / OTP delivery |
-| **dotenv** | 17.x | Environment variable management |
+| Technology             | Version | Purpose                             |
+| ---------------------- | ------- | ----------------------------------- |
+| **Node.js / Express**  | 5.x     | REST API server                     |
+| **MongoDB / Mongoose** | 9.x     | Database and ODM                    |
+| **Ollama (local LLM)** | —       | AI risk analysis and test selection |
+| **AWS CodeBuild**      | SDK v3  | Cloud CI/CD test execution          |
+| **AWS S3**             | SDK v3  | Test report storage                 |
+| **AWS SageMaker**      | SDK v3  | (Optional) Managed ML inference     |
+| **jsonwebtoken**       | 9.x     | JWT authentication                  |
+| **bcryptjs**           | 3.x     | Password hashing                    |
+| **nodemailer**         | 8.x     | Email notifications / OTP delivery  |
+| **dotenv**             | 17.x    | Environment variable management     |
 
 ---
 
@@ -128,7 +127,7 @@ The platform provides a production-grade dashboard experience (similar to Datado
 - 🧪 **Intelligent Test Selection** — AI selects the minimum viable test suite, skipping tests unrelated to the changes.
 - ⚡ **AWS CodeBuild Integration** — Automatically triggers a scoped build job with only the selected test files.
 - 📊 **Rich Analytics Dashboard** — 30-day trend charts for time saved, tests reduced, risk scores, pipeline duration, and PR volumes.
-- 🔔 **Real-Time Updates** — Socket.io streams pipeline stage transitions and log output live to the frontend.
+- ⏱️ **Near Real-Time Updates** — Frontend polls status and logs endpoints to show live pipeline progression.
 - 🔐 **JWT Authentication** — Register/login with email + OTP verification, or authenticate via GitHub OAuth.
 - 🌐 **GitHub Webhook Integration** — Connects directly to GitHub repository webhooks for automatic PR analysis.
 - 🌙 **Dark / Light Mode** — Full theme support with CSS custom properties and `next-themes`.
@@ -312,76 +311,76 @@ All routes are prefixed with `/api`.
 
 ### Health
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Server health check |
-| GET | `/api/health` | API health check |
-| GET | `/api/ai/health` | Ollama model health check |
+| Method | Endpoint         | Description               |
+| ------ | ---------------- | ------------------------- |
+| GET    | `/health`        | Server health check       |
+| GET    | `/api/health`    | API health check          |
+| GET    | `/api/ai/health` | Ollama model health check |
 
 ### Authentication (`/api/auth`)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/register` | Public | Register with email + password |
-| POST | `/api/auth/verify-otp` | Public | Verify email OTP |
-| POST | `/api/auth/resend-otp` | Public | Resend OTP email |
-| POST | `/api/auth/login` | Public | Login, returns JWT |
-| POST | `/api/auth/github` | Public | GitHub OAuth login |
-| POST | `/api/auth/forgot-password` | Public | Send password-reset email |
-| PUT | `/api/auth/reset-password/:token` | Public | Reset password with token |
-| GET | `/api/auth/me` | 🔒 JWT | Get current user profile |
-| PUT | `/api/auth/profile` | 🔒 JWT | Update user profile |
-| PUT | `/api/auth/password` | 🔒 JWT | Change password |
-| POST | `/api/auth/connect-github` | 🔒 JWT | Connect GitHub account |
-| DELETE | `/api/auth/disconnect-github` | 🔒 JWT | Disconnect GitHub account |
+| Method | Endpoint                          | Auth   | Description                    |
+| ------ | --------------------------------- | ------ | ------------------------------ |
+| POST   | `/api/auth/register`              | Public | Register with email + password |
+| POST   | `/api/auth/verify-otp`            | Public | Verify email OTP               |
+| POST   | `/api/auth/resend-otp`            | Public | Resend OTP email               |
+| POST   | `/api/auth/login`                 | Public | Login, returns JWT             |
+| POST   | `/api/auth/github`                | Public | GitHub OAuth login             |
+| POST   | `/api/auth/forgot-password`       | Public | Send password-reset email      |
+| PUT    | `/api/auth/reset-password/:token` | Public | Reset password with token      |
+| GET    | `/api/auth/me`                    | 🔒 JWT | Get current user profile       |
+| PUT    | `/api/auth/profile`               | 🔒 JWT | Update user profile            |
+| PUT    | `/api/auth/password`              | 🔒 JWT | Change password                |
+| POST   | `/api/auth/connect-github`        | 🔒 JWT | Connect GitHub account         |
+| DELETE | `/api/auth/disconnect-github`     | 🔒 JWT | Disconnect GitHub account      |
 
 ### Pull Requests (`/api/pr`)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/pr` | 🔒 JWT | List all PRs |
-| GET | `/api/pr/recent` | 🔒 JWT | Last 20 PRs |
-| GET | `/api/pr/:id` | 🔒 JWT | Get PR by ID |
-| GET | `/api/pr/:id/status` | 🔒 JWT | PR + pipeline stages + logs (polling) |
-| GET | `/api/pr/:id/report` | 🔒 JWT | Fetch test report from S3 |
-| POST | `/api/pr/analyze/:id` | 🔒 JWT | Trigger full AI analysis pipeline |
-| PUT | `/api/pr/:id` | 🔒 JWT | Update PR fields |
-| DELETE | `/api/pr/:id` | 🔒 JWT | Delete PR and associated data |
+| Method | Endpoint              | Auth   | Description                           |
+| ------ | --------------------- | ------ | ------------------------------------- |
+| GET    | `/api/pr`             | 🔒 JWT | List all PRs                          |
+| GET    | `/api/pr/recent`      | 🔒 JWT | Last 20 PRs                           |
+| GET    | `/api/pr/:id`         | 🔒 JWT | Get PR by ID                          |
+| GET    | `/api/pr/:id/status`  | 🔒 JWT | PR + pipeline stages + logs (polling) |
+| GET    | `/api/pr/:id/report`  | 🔒 JWT | Fetch test report from S3             |
+| POST   | `/api/pr/analyze/:id` | 🔒 JWT | Trigger full AI analysis pipeline     |
+| PUT    | `/api/pr/:id`         | 🔒 JWT | Update PR fields                      |
+| DELETE | `/api/pr/:id`         | 🔒 JWT | Delete PR and associated data         |
 
 ### Webhooks (`/api/webhook`)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/webhook/github` | Public (HMAC) | Receive real GitHub PR events |
-| POST | `/api/webhook/simulate` | 🔒 JWT | Trigger a simulated PR from the frontend |
+| Method | Endpoint                | Auth          | Description                              |
+| ------ | ----------------------- | ------------- | ---------------------------------------- |
+| POST   | `/api/webhook/github`   | Public (HMAC) | Receive real GitHub PR events            |
+| POST   | `/api/webhook/simulate` | 🔒 JWT        | Trigger a simulated PR from the frontend |
 
 ### Logs (`/api/logs`)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/logs` | 🔒 JWT | Fetch system logs with optional filters |
+| Method | Endpoint    | Auth   | Description                             |
+| ------ | ----------- | ------ | --------------------------------------- |
+| GET    | `/api/logs` | 🔒 JWT | Fetch system logs with optional filters |
 
 ### GitHub (`/api/github`)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/github/repos` | 🔒 JWT | List user's GitHub repositories |
-| GET | `/api/github/repos/:owner/:repo/prs` | 🔒 JWT | List open PRs for a repo |
+| Method | Endpoint                             | Auth   | Description                     |
+| ------ | ------------------------------------ | ------ | ------------------------------- |
+| GET    | `/api/github/repos`                  | 🔒 JWT | List user's GitHub repositories |
+| GET    | `/api/github/repos/:owner/:repo/prs` | 🔒 JWT | List open PRs for a repo        |
 
 ---
 
 ## Frontend Pages
 
-| Route | Page | Description |
-|-------|------|-------------|
-| `/dashboard` | Dashboard | KPI stat cards, time-saved area chart, risk distribution donut chart, recent activity feed, environment health |
-| `/pull-requests` | Pull Requests | PR list with risk filters (All / High / Medium / Low), simulation trigger button, persistent history |
-| `/analysis` | AI Analysis | Staged reveal of AI analysis — file fetching → dependency mapping → risk model → risk score ring with explanation → impacted modules grid → dependency chains |
-| `/test-selection` | Test Selection | Selected vs. skipped tests with animated counters, coverage ring chart, optimization breakdown (must-run / dependency-affected / skippable) |
-| `/test-runs` | Test Execution | 8-stage CI pipeline progress bar, live test results grid (pass/fail/duration/coverage), streaming terminal log output |
-| `/metrics` | Metrics | 5 analytics charts: time saved (area), tests reduced (bar), risk score trend (line), pipeline duration (composed), PRs analyzed 30-day (area) |
-| `/logs` | Logs | System log viewer with type tabs (Lambda / Model Inference / Test Runner) and severity filter chips (INFO / DEBUG / WARN / ERROR) |
-| `/settings` | Settings | Configuration toggles for AI analysis, test optimization, notifications, GitHub integration, and infrastructure info |
+| Route             | Page           | Description                                                                                                                                                   |
+| ----------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/dashboard`      | Dashboard      | KPI stat cards, time-saved area chart, risk distribution donut chart, recent activity feed, environment health                                                |
+| `/pull-requests`  | Pull Requests  | PR list with risk filters (All / High / Medium / Low), simulation trigger button, persistent history                                                          |
+| `/analysis`       | AI Analysis    | Staged reveal of AI analysis — file fetching → dependency mapping → risk model → risk score ring with explanation → impacted modules grid → dependency chains |
+| `/test-selection` | Test Selection | Selected vs. skipped tests with animated counters, coverage ring chart, optimization breakdown (must-run / dependency-affected / skippable)                   |
+| `/test-runs`      | Test Execution | 8-stage CI pipeline progress bar, live test results grid (pass/fail/duration/coverage), streaming terminal log output                                         |
+| `/metrics`        | Metrics        | 5 analytics charts: time saved (area), tests reduced (bar), risk score trend (line), pipeline duration (composed), PRs analyzed 30-day (area)                 |
+| `/logs`           | Logs           | System log viewer with type tabs (Lambda / Model Inference / Test Runner) and severity filter chips (INFO / DEBUG / WARN / ERROR)                             |
+| `/settings`       | Settings       | Configuration toggles for AI analysis, test optimization, notifications, GitHub integration, and infrastructure info                                          |
 
 ---
 
@@ -419,12 +418,13 @@ GitHub Webhook / Simulate Endpoint
 6. Report Upload & Storage
    └─ Upload JSON report to S3
    └─ Store results in MongoDB (PipelineRun, TestMapping, Log models)
-   └─ Emit Socket.io events to connected frontend clients
+   └─ Frontend consumes updates via polling (`GET /api/pr/:id/status` and logs endpoints)
 ```
 
 ### AI Prompting Strategy
 
 The AI service uses structured prompts that instruct the LLM to:
+
 - Respond with **pure JSON only** (no markdown, no explanations outside the JSON object).
 - Use `/no_think` to suppress chain-of-thought in compatible models.
 - Base assessments **strictly on the file names and paths provided** — hallucination of unrelated modules is explicitly prohibited.
